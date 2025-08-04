@@ -1,7 +1,9 @@
 "use client"
 
 import { usePathname } from "next/navigation"
+import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { 
   Sidebar,
   SidebarContent,
@@ -82,12 +84,17 @@ const menuItems = {
 
 function AppSidebar() {
   const pathname = usePathname()
+  const { data: session } = useSession()
 
   const isActive = (url) => {
     if (url === "/dashboard") {
       return pathname === "/dashboard"
     }
     return pathname.startsWith(url)
+  }
+
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: '/login' })
   }
 
   return (
@@ -170,12 +177,14 @@ function AppSidebar() {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src="/placeholder-avatar.jpg" alt="John Doe" />
-                    <AvatarFallback className="rounded-lg">JD</AvatarFallback>
+                    <AvatarImage src={session?.user?.avatar || "/placeholder-avatar.jpg"} alt={session?.user?.name || "User"} />
+                    <AvatarFallback className="rounded-lg">
+                      {session?.user?.name?.charAt(0)?.toUpperCase() || "U"}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">John Doe</span>
-                    <span className="truncate text-xs">john.doe@example.com</span>
+                    <span className="truncate font-semibold">{session?.user?.name || "User"}</span>
+                    <span className="truncate text-xs">{session?.user?.email || ""}</span>
                   </div>
                   <ChevronDown className="ml-auto size-4" />
                 </SidebarMenuButton>
@@ -193,11 +202,9 @@ function AppSidebar() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/login" className="flex items-center text-red-600">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log out
-                  </Link>
+                <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600 cursor-pointer">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -270,16 +277,19 @@ export default function DashboardLayout({ children }) {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="flex flex-col" style={{ height: '98vh' }}>
         <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b">
           <SidebarTrigger className="-ml-1" />
           <div className="flex items-center gap-2 flex-1">
             <DashboardBreadcrumb />
           </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+          </div>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <main className="flex-1 overflow-y-auto p-4">
           {children}
-        </div>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   )

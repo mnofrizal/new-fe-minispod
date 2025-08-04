@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { signIn, getSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,22 +21,35 @@ export default function LoginPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const router = useRouter()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
-    // Simulate API call
-    setTimeout(() => {
-      if (formData.email === "admin@minispod.com" && formData.password === "password") {
-        // Redirect to dashboard on successful login
-        window.location.href = "/dashboard"
-      } else {
+    try {
+      const result = await signIn('credentials', {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      })
+
+      if (result?.error) {
         setError("Invalid email or password. Please try again.")
+      } else if (result?.ok) {
+        // Wait for session to be established then redirect
+        const session = await getSession()
+        if (session) {
+          router.push('/dashboard')
+        }
       }
+    } catch (error) {
+      console.error('Login error:', error)
+      setError("Something went wrong. Please try again.")
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   const handleInputChange = (e) => {
