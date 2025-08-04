@@ -45,7 +45,17 @@ import {
   ChevronDown,
   LogOut,
   User,
-  ChevronRight
+  ChevronRight,
+  Users,
+  Package,
+  CreditCard as SubscriptionIcon,
+  Shield,
+  Server,
+  HardDrive,
+  Rocket,
+  Box,
+  Globe2,
+  Network
 } from "lucide-react"
 
 const menuItems = {
@@ -66,6 +76,50 @@ const menuItems = {
       title: "Applications List",
       url: "/dashboard/applications",
       icon: Grid3X3,
+    },
+  ],
+  admin: [
+    {
+      title: "Manage Users",
+      url: "/dashboard/admin/users",
+      icon: Users,
+    },
+    {
+      title: "Manage Service Catalog",
+      url: "/dashboard/admin/services",
+      icon: Package,
+    },
+    {
+      title: "Manage Subscriptions",
+      url: "/dashboard/admin/subscriptions",
+      icon: SubscriptionIcon,
+    },
+  ],
+  server: [
+    {
+      title: "Nodes",
+      url: "/dashboard/server/nodes",
+      icon: HardDrive,
+    },
+    {
+      title: "Deployment",
+      url: "/dashboard/server/deployment",
+      icon: Rocket,
+    },
+    {
+      title: "Pods",
+      url: "/dashboard/server/pods",
+      icon: Box,
+    },
+    {
+      title: "Namespaces",
+      url: "/dashboard/server/namespaces",
+      icon: Globe2,
+    },
+    {
+      title: "Network",
+      url: "/dashboard/server/network",
+      icon: Network,
     },
   ],
   support: [
@@ -139,6 +193,42 @@ function AppSidebar() {
                   <SidebarMenuButton asChild isActive={isActive(item.url)}>
                     <Link href={item.url}>
                       <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Admin Panel</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.admin.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                    <Link href={item.url}>
+                      <item.icon className="size-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Server</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.server.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                    <Link href={item.url}>
+                      <item.icon className="size-4" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -239,6 +329,46 @@ function DashboardBreadcrumb() {
       '/dashboard/settings': [
         { label: 'Dashboard', href: '/dashboard' },
         { label: 'Settings', href: '/dashboard/settings' }
+      ],
+      '/dashboard/admin/users': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Admin Panel', href: '#' },
+        { label: 'Manage Users', href: '/dashboard/admin/users' }
+      ],
+      '/dashboard/admin/services': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Admin Panel', href: '#' },
+        { label: 'Manage Service Catalog', href: '/dashboard/admin/services' }
+      ],
+      '/dashboard/admin/subscriptions': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Admin Panel', href: '#' },
+        { label: 'Manage Subscriptions', href: '/dashboard/admin/subscriptions' }
+      ],
+      '/dashboard/server/nodes': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Server', href: '#' },
+        { label: 'Nodes', href: '/dashboard/server/nodes' }
+      ],
+      '/dashboard/server/deployment': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Server', href: '#' },
+        { label: 'Deployment', href: '/dashboard/server/deployment' }
+      ],
+      '/dashboard/server/pods': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Server', href: '#' },
+        { label: 'Pods', href: '/dashboard/server/pods' }
+      ],
+      '/dashboard/server/namespaces': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Server', href: '#' },
+        { label: 'Namespaces', href: '/dashboard/server/namespaces' }
+      ],
+      '/dashboard/server/network': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Server', href: '#' },
+        { label: 'Network', href: '/dashboard/server/network' }
       ]
     }
 
