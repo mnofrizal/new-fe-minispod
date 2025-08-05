@@ -32,6 +32,16 @@ export const API_ENDPOINTS = {
         GET_ALL: "/api/admin/k8s/nodes",
         GET_BY_NAME: "/api/admin/k8s/nodes/:name",
       },
+      NAMESPACES: {
+        GET_ALL: "/api/admin/k8s/namespaces",
+      },
+      DEPLOYMENTS: {
+        GET_ALL: "/api/admin/k8s/deployments",
+      },
+      PODS: {
+        GET_ALL: "/api/admin/k8s/pods",
+        GET_BY_NAME: "/api/admin/k8s/pods/:name",
+      },
     },
   },
 };
