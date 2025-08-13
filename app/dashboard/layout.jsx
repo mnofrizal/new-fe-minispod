@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
@@ -18,7 +19,10 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
-  SidebarTrigger
+  SidebarTrigger,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { 
@@ -55,7 +59,9 @@ import {
   Rocket,
   Box,
   Globe2,
-  Network
+  Network,
+  WifiIcon,
+  Router
 } from "lucide-react"
 
 const menuItems = {
@@ -120,6 +126,18 @@ const menuItems = {
       title: "Network",
       url: "/dashboard/server/network",
       icon: Network,
+      subItems: [
+        {
+          title: "Services",
+          url: "/dashboard/server/network/services",
+          icon: WifiIcon,
+        },
+        {
+          title: "Ingresses",
+          url: "/dashboard/server/network/ingresses",
+          icon: Router,
+        }
+      ]
     },
   ],
   support: [
@@ -139,12 +157,28 @@ const menuItems = {
 function AppSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const [expandedMenus, setExpandedMenus] = React.useState({})
 
   const isActive = (url) => {
     if (url === "/dashboard") {
       return pathname === "/dashboard"
     }
     return pathname.startsWith(url)
+  }
+
+  const toggleSubMenu = (menuTitle) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [menuTitle]: !prev[menuTitle]
+    }))
+  }
+
+  const isSubMenuExpanded = (menuTitle) => {
+    // Auto-expand if user is on a sub-route
+    if (menuTitle === "Network" && (pathname.startsWith("/dashboard/server/network/services") || pathname.startsWith("/dashboard/server/network/ingresses"))) {
+      return true
+    }
+    return expandedMenus[menuTitle] || false
   }
 
   const handleLogout = async () => {
@@ -226,12 +260,39 @@ function AppSidebar() {
             <SidebarMenu>
               {menuItems.server.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <Link href={item.url}>
-                      <item.icon className="size-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  {item.subItems ? (
+                    <>
+                      <SidebarMenuButton 
+                        onClick={() => toggleSubMenu(item.title)}
+                        isActive={isActive(item.url)}
+                      >
+                        <item.icon className="size-4" />
+                        <span>{item.title}</span>
+                        <ChevronRight className={`ml-auto size-4 transition-transform duration-200 ${isSubMenuExpanded(item.title) ? 'rotate-90' : ''}`} />
+                      </SidebarMenuButton>
+                      {isSubMenuExpanded(item.title) && (
+                        <SidebarMenuSub>
+                          {item.subItems.map((subItem) => (
+                            <SidebarMenuSubItem key={subItem.title}>
+                              <SidebarMenuSubButton asChild isActive={isActive(subItem.url)}>
+                                <Link href={subItem.url}>
+                                  <subItem.icon className="size-4" />
+                                  <span>{subItem.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      )}
+                    </>
+                  ) : (
+                    <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                      <Link href={item.url}>
+                        <item.icon className="size-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
@@ -369,6 +430,18 @@ function DashboardBreadcrumb() {
         { label: 'Dashboard', href: '/dashboard' },
         { label: 'Server', href: '#' },
         { label: 'Network', href: '/dashboard/server/network' }
+      ],
+      '/dashboard/server/network/services': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Server', href: '#' },
+        { label: 'Network', href: '/dashboard/server/network' },
+        { label: 'Services', href: '/dashboard/server/network/services' }
+      ],
+      '/dashboard/server/network/ingresses': [
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Server', href: '#' },
+        { label: 'Network', href: '/dashboard/server/network' },
+        { label: 'Ingresses', href: '/dashboard/server/network/ingresses' }
       ]
     }
 

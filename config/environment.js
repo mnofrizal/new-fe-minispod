@@ -18,6 +18,11 @@ export const API_ENDPOINTS = {
   USER: {
     PROFILE: "/api/user/profile",
   },
+  CATALOG: {
+    SERVICES: {
+      GET_ALL: "/api/catalog/services",
+    },
+  },
   ADMIN: {
     USERS: {
       GET_ALL: "/api/admin/users", // no payload
@@ -41,6 +46,12 @@ export const API_ENDPOINTS = {
       PODS: {
         GET_ALL: "/api/admin/k8s/pods",
         GET_BY_NAME: "/api/admin/k8s/pods/:name",
+      },
+      INGRESSES: {
+        GET_ALL: "/api/admin/k8s/ingresses",
+      },
+      SERVICES: {
+        GET_ALL: "/api/admin/k8s/services",
       },
     },
   },
