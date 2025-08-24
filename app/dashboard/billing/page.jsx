@@ -1,237 +1,545 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { CreditCard, Download, CheckCircle, AlertCircle } from "lucide-react"
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  CreditCard,
+  DollarSign,
+  Download,
+  MoreHorizontal,
+  PlusCircle,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
+import { ENV_CONFIG, API_ENDPOINTS } from "@/config/environment";
+import { format } from "date-fns";
 
 export default function BillingPage() {
-  const currentPlan = {
-    name: "Pro Plan",
-    price: "$29.99",
-    billing: "monthly",
-    status: "active",
-    nextBilling: "January 15, 2025",
-    features: [
-      "Unlimited apps",
-      "Advanced analytics",
-      "Priority support",
-      "Custom domains",
-      "API access"
-    ]
+  const { data: session, status } = useSession();
+  const [walletInfo, setWalletInfo] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [topUpDialogOpen, setTopUpDialogOpen] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState("");
+  const [isToppingUp, setIsToppingUp] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTransactions, setTotalTransactions] = useState(0);
+  const transactionsPerPage = 10;
+
+  useEffect(() => {
+    const midtransScriptUrl = "https://app.sandbox.midtrans.com/snap/snap.js";
+    const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY;
+
+    const script = document.createElement("script");
+    script.src = midtransScriptUrl;
+    script.setAttribute("data-client-key", clientKey);
+    script.async = true;
+
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (session?.accessToken) {
+      fetchWalletInfo();
+      fetchTransactions(currentPage);
+    } else if (status === "unauthenticated") {
+      setIsLoading(false);
+    }
+  }, [session, status, currentPage]);
+
+  const handlePay = (token) => {
+    if (window.snap) {
+      window.snap.pay(token, {
+        onSuccess: function (result) {
+          toast.success("Payment success!");
+          fetchTransactions(currentPage);
+          fetchWalletInfo();
+        },
+        onPending: function (result) {
+          toast.info("Waiting for your payment!");
+        },
+        onError: function (result) {
+          toast.error("Payment failed!");
+        },
+        onClose: function () {
+          toast.info("You closed the popup without finishing the payment");
+        },
+      });
+    }
+  };
+
+  const handleTopUp = async () => {
+    if (!session?.accessToken || !topUpAmount || Number(topUpAmount) <= 0) {
+      toast.error("Please enter a valid amount.");
+      return;
+    }
+
+    setIsToppingUp(true);
+    try {
+      const response = await fetch(
+        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.WALLET.TOPUP}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amount: Number(topUpAmount),
+            paymentMethod: "QRIS",
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setTopUpDialogOpen(false);
+        setTopUpAmount("");
+        if (result.data.transaction.snapToken) {
+          handlePay(result.data.transaction.snapToken);
+        }
+        fetchTransactions(currentPage);
+      } else {
+        toast.error(result.message || "Failed to initiate top-up.");
+      }
+    } catch (error) {
+      toast.error("Error initiating top-up.");
+    } finally {
+      setIsToppingUp(false);
+    }
+  };
+
+  const fetchWalletInfo = async () => {
+    if (!session?.accessToken) return;
+
+    try {
+      const response = await fetch(
+        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.WALLET.INFO}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        setWalletInfo(result.data.wallet);
+      } else {
+        const errorResult = await response.json();
+        toast.error(errorResult.message || "Failed to load wallet info", {
+          style: {
+            background: "#ef4444",
+            color: "white",
+            border: "1px solid #dc2626",
+          },
+        });
+      }
+    } catch (error) {
+      toast.error("Error loading wallet info", {
+        style: {
+          background: "#ef4444",
+          color: "white",
+          border: "1px solid #dc2626",
+        },
+      });
+    }
+  };
+
+  const fetchTransactions = async (page) => {
+    if (!session?.accessToken) return;
+
+    try {
+      const response = await fetch(
+        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.WALLET.TRANSACTIION.GET_ALL}?page=${page}&limit=${transactionsPerPage}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        setTransactions(result.data.transactions || []);
+        setTotalPages(result.data.totalPages || 1);
+      } else {
+        const errorResult = await response.json();
+        toast.error(errorResult.message || "Failed to load transactions", {
+          style: {
+            background: "#ef4444",
+            color: "white",
+            border: "1px solid #dc2626",
+          },
+        });
+      }
+    } catch (error) {
+      toast.error("Error loading transactions", {
+        style: {
+          background: "#ef4444",
+          color: "white",
+          border: "1px solid #dc2626",
+        },
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const getStatusBadgeVariant = (status) => {
+    switch (status) {
+      case "COMPLETED":
+      case "SUCCESS":
+        return "bg-green-100 text-green-800";
+      case "PENDING":
+        return "bg-yellow-100 text-yellow-800";
+      case "FAILED":
+      case "CANCELLED":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  if (status === "loading" || isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-muted-foreground">
+          Loading billing information...
+        </div>
+      </div>
+    );
   }
 
-  const invoices = [
-    {
-      id: "INV-001",
-      date: "Dec 15, 2024",
-      amount: "$29.99",
-      status: "paid",
-      description: "Pro Plan - Monthly"
-    },
-    {
-      id: "INV-002",
-      date: "Nov 15, 2024",
-      amount: "$29.99",
-      status: "paid",
-      description: "Pro Plan - Monthly"
-    },
-    {
-      id: "INV-003",
-      date: "Oct 15, 2024",
-      amount: "$29.99",
-      status: "paid",
-      description: "Pro Plan - Monthly"
-    },
-    {
-      id: "INV-004",
-      date: "Sep 15, 2024",
-      amount: "$29.99",
-      status: "paid",
-      description: "Pro Plan - Monthly"
-    }
-  ]
-
-  const plans = [
-    {
-      name: "Starter",
-      price: "$9.99",
-      period: "month",
-      features: ["Up to 3 apps", "Basic analytics", "Email support"],
-      current: false
-    },
-    {
-      name: "Pro",
-      price: "$29.99",
-      period: "month",
-      features: ["Unlimited apps", "Advanced analytics", "Priority support", "Custom domains"],
-      current: true
-    },
-    {
-      name: "Enterprise",
-      price: "$99.99",
-      period: "month",
-      features: ["Everything in Pro", "Dedicated support", "SLA guarantee", "Custom integrations"],
-      current: false
-    }
-  ]
+  if (status === "unauthenticated") {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-muted-foreground">
+          Please sign in to access this page
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Billing</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Billing & Wallet</h2>
         <p className="text-muted-foreground">
-          Manage your subscription and billing information
+          Manage your wallet, view transactions, and handle your billing.
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      {walletInfo && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CreditCard className="h-5 w-5" />
-              <span>Current Plan</span>
-            </CardTitle>
-            <CardDescription>Your active subscription details</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center space-x-2">
+                <CreditCard className="h-5 w-5" />
+                <span>My Wallet</span>
+              </CardTitle>
+              <CardDescription>
+                Your current balance and wallet details.
+              </CardDescription>
+            </div>
+            <Button onClick={() => setTopUpDialogOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Top Up
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="grid gap-6 md:grid-cols-3">
+            <div className="flex flex-col justify-between p-6 bg-primary text-primary-foreground rounded-lg">
               <div>
-                <h3 className="text-2xl font-bold">{currentPlan.name}</h3>
-                <p className="text-muted-foreground">{currentPlan.price}/{currentPlan.billing}</p>
+                <p className="text-sm">Credit Balance</p>
+                <p className="text-4xl font-bold">
+                  {formatCurrency(walletInfo.creditBalance)}
+                </p>
               </div>
-              <Badge className="bg-green-100 text-green-800">
-                <CheckCircle className="w-3 h-3 mr-1" />
-                {currentPlan.status}
-              </Badge>
-            </div>
-            
-            <Separator />
-            
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Next billing date</p>
-              <p className="font-medium">{currentPlan.nextBilling}</p>
-            </div>
-            
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Features included</p>
-              <ul className="space-y-1">
-                {currentPlan.features.map((feature, index) => (
-                  <li key={index} className="flex items-center text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div className="flex space-x-2 pt-4">
-              <Button variant="outline" className="flex-1">
-                Change Plan
-              </Button>
-              <Button variant="outline">
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment Method</CardTitle>
-            <CardDescription>Manage your payment information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-3 p-3 border rounded-lg">
-              <CreditCard className="h-8 w-8 text-muted-foreground" />
-              <div className="flex-1">
-                <p className="font-medium">•••• •••• •••• 4242</p>
-                <p className="text-sm text-muted-foreground">Expires 12/26</p>
+              <div className="text-xs opacity-80">
+                <p>User: {walletInfo.userName}</p>
+                <p>Email: {walletInfo.email}</p>
               </div>
-              <Badge variant="secondary">Default</Badge>
             </div>
-            
-            <div className="flex space-x-2">
-              <Button variant="outline" className="flex-1">
-                Update Card
-              </Button>
-              <Button variant="outline">
-                Add Card
-              </Button>
+            <div className="space-y-4 col-span-2 grid grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Total Top Up
+                  </CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(walletInfo.totalTopUp)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">All time</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Total Spent
+                  </CardTitle>
+                  <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(walletInfo.totalSpent)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">All time</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Net Balance
+                  </CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(walletInfo.netBalance)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Member since{" "}
+                    {format(new Date(walletInfo.memberSince), "MMM yyyy")}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Monthly Spending
+                  </CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(walletInfo.monthlySpending)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">This month</p>
+                </CardContent>
+              </Card>
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Invoices</CardTitle>
-            <CardDescription>Your billing history</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {invoices.map((invoice) => (
-                <div key={invoice.id} className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{invoice.description}</p>
-                    <p className="text-sm text-muted-foreground">{invoice.date}</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium">{invoice.amount}</span>
-                    <Badge className="bg-green-100 text-green-800">
-                      {invoice.status}
-                    </Badge>
-                    <Button variant="ghost" size="sm">
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+      <Card>
+        <CardHeader>
+          <CardTitle>Transaction History</CardTitle>
+          <CardDescription>
+            A record of all your wallet transactions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {transactions.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-muted-foreground">No transactions found</div>
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {transactions.map((tx) => (
+                    <TableRow key={tx.id}>
+                      <TableCell>
+                        {format(new Date(tx.createdAt), "dd MMM yyyy, HH:mm")}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            tx.type === "TOP_UP" ? "outline" : "secondary"
+                          }
+                        >
+                          {tx.type.replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell
+                        className={`font-medium ${
+                          tx.type === "TOP_UP"
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {tx.type === "TOP_UP" ? "+" : "-"}{" "}
+                        {formatCurrency(tx.amount)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusBadgeVariant(tx.status)}>
+                          {tx.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{tx.description}</TableCell>
+                      <TableCell className="text-right">
+                        {tx.status === "PENDING" &&
+                        tx.metadata?.midtrans_token ? (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              handlePay(tx.metadata.midtrans_token)
+                            }
+                          >
+                            Pay Now
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Pagination className="mt-4">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setCurrentPage((prev) => Math.max(prev - 1, 1));
+                      }}
+                      disabled={currentPage === 1}
+                    />
+                  </PaginationItem>
+                  {[...Array(totalPages).keys()].map((number) => (
+                    <PaginationItem key={number + 1}>
+                      <PaginationLink
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage(number + 1);
+                        }}
+                        isActive={currentPage === number + 1}
+                      >
+                        {number + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setCurrentPage((prev) =>
+                          Math.min(prev + 1, totalPages)
+                        );
+                      }}
+                      disabled={currentPage === totalPages}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Available Plans</CardTitle>
-            <CardDescription>Upgrade or downgrade your subscription</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {plans.map((plan) => (
-                <div 
-                  key={plan.name} 
-                  className={`p-4 border rounded-lg ${plan.current ? 'border-primary bg-primary/5' : ''}`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h4 className="font-semibold">{plan.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        ${plan.price}/{plan.period}
-                      </p>
-                    </div>
-                    {plan.current ? (
-                      <Badge>Current</Badge>
-                    ) : (
-                      <Button variant="outline" size="sm">
-                        Switch
-                      </Button>
-                    )}
-                  </div>
-                  <ul className="text-sm space-y-1">
-                    {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-center">
-                        <CheckCircle className="h-3 w-3 text-green-500 mr-2" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+      <Dialog open={topUpDialogOpen} onOpenChange={setTopUpDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Top Up Wallet</DialogTitle>
+            <DialogDescription>
+              Enter the amount you want to top up. Payment will be processed via
+              QRIS.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="amount" className="text-right">
+                Amount
+              </Label>
+              <Input
+                id="amount"
+                type="number"
+                value={topUpAmount}
+                onChange={(e) => setTopUpAmount(e.target.value)}
+                className="col-span-3"
+                placeholder="e.g., 50000"
+              />
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setTopUpDialogOpen(false)}
+              disabled={isToppingUp}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleTopUp} disabled={isToppingUp}>
+              {isToppingUp ? "Processing..." : "Top Up Now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  )
+  );
 }

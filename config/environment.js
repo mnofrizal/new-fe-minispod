@@ -18,6 +18,15 @@ export const API_ENDPOINTS = {
   USER: {
     PROFILE: "/api/user/profile",
   },
+  WALLET: {
+    INFO: "/api/wallet/info",
+    TRANSACTIION: {
+      GET_ALL: "/api/wallet/transactions",
+      GET_BY_ID: "/api/wallet/transactions/:id",
+    },
+    TOPUP: "/api/wallet/topup",
+    STATISTICS: "/api/wallet/statistics",
+  },
   CATALOG: {
     SERVICES: {
       GET_ALL: "/api/catalog/services",
