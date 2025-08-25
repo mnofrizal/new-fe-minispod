@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import React from "react"
-import { usePathname } from "next/navigation"
-import { useSession, signOut } from "next-auth/react"
-import Link from "next/link"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { 
+import React from "react";
+import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
+import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -22,16 +22,16 @@ import {
   SidebarTrigger,
   SidebarMenuSub,
   SidebarMenuSubItem,
-  SidebarMenuSubButton
-} from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { 
+  SidebarMenuSubButton,
+} from "@/components/ui/sidebar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -39,8 +39,8 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { 
+} from "@/components/ui/breadcrumb";
+import {
   LayoutDashboard,
   Smartphone,
   Grid3X3,
@@ -61,8 +61,8 @@ import {
   Globe2,
   Network,
   WifiIcon,
-  Router
-} from "lucide-react"
+  Router,
+} from "lucide-react";
 
 const menuItems = {
   platform: [
@@ -136,8 +136,8 @@ const menuItems = {
           title: "Ingresses",
           url: "/dashboard/server/network/ingresses",
           icon: Router,
-        }
-      ]
+        },
+      ],
     },
   ],
   support: [
@@ -152,38 +152,42 @@ const menuItems = {
       icon: Settings,
     },
   ],
-}
+};
 
 function AppSidebar() {
-  const pathname = usePathname()
-  const { data: session } = useSession()
-  const [expandedMenus, setExpandedMenus] = React.useState({})
+  const pathname = usePathname();
+  const { data: session } = useSession();
+  const [expandedMenus, setExpandedMenus] = React.useState({});
 
   const isActive = (url) => {
     if (url === "/dashboard") {
-      return pathname === "/dashboard"
+      return pathname === "/dashboard";
     }
-    return pathname.startsWith(url)
-  }
+    return pathname.startsWith(url);
+  };
 
   const toggleSubMenu = (menuTitle) => {
-    setExpandedMenus(prev => ({
+    setExpandedMenus((prev) => ({
       ...prev,
-      [menuTitle]: !prev[menuTitle]
-    }))
-  }
+      [menuTitle]: !prev[menuTitle],
+    }));
+  };
 
   const isSubMenuExpanded = (menuTitle) => {
     // Auto-expand if user is on a sub-route
-    if (menuTitle === "Network" && (pathname.startsWith("/dashboard/server/network/services") || pathname.startsWith("/dashboard/server/network/ingresses"))) {
-      return true
+    if (
+      menuTitle === "Network" &&
+      (pathname.startsWith("/dashboard/server/network/services") ||
+        pathname.startsWith("/dashboard/server/network/ingresses"))
+    ) {
+      return true;
     }
-    return expandedMenus[menuTitle] || false
-  }
+    return expandedMenus[menuTitle] || false;
+  };
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: '/login' })
-  }
+    await signOut({ callbackUrl: "/login" });
+  };
 
   return (
     <Sidebar variant="inset">
@@ -198,7 +202,7 @@ function AppSidebar() {
           </div>
         </div>
       </SidebarHeader>
-      
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
@@ -236,68 +240,81 @@ function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Admin Panel</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.admin.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <Link href={item.url}>
-                      <item.icon className="size-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Server</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.server.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  {item.subItems ? (
-                    <>
-                      <SidebarMenuButton 
-                        onClick={() => toggleSubMenu(item.title)}
-                        isActive={isActive(item.url)}
-                      >
-                        <item.icon className="size-4" />
-                        <span>{item.title}</span>
-                        <ChevronRight className={`ml-auto size-4 transition-transform duration-200 ${isSubMenuExpanded(item.title) ? 'rotate-90' : ''}`} />
-                      </SidebarMenuButton>
-                      {isSubMenuExpanded(item.title) && (
-                        <SidebarMenuSub>
-                          {item.subItems.map((subItem) => (
-                            <SidebarMenuSubItem key={subItem.title}>
-                              <SidebarMenuSubButton asChild isActive={isActive(subItem.url)}>
-                                <Link href={subItem.url}>
-                                  <subItem.icon className="size-4" />
-                                  <span>{subItem.title}</span>
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      )}
-                    </>
-                  ) : (
+        {/* Admin Panel - Only show for ADMINISTRATOR role */}
+        {session?.user?.role === "ADMINISTRATOR" && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin Panel</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {menuItems.admin.map((item) => (
+                  <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive(item.url)}>
                       <Link href={item.url}>
                         <item.icon className="size-4" />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
-                  )}
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Server - Only show for ADMINISTRATOR role */}
+        {session?.user?.role === "ADMINISTRATOR" && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Server</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {menuItems.server.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    {item.subItems ? (
+                      <>
+                        <SidebarMenuButton
+                          onClick={() => toggleSubMenu(item.title)}
+                          isActive={isActive(item.url)}
+                        >
+                          <item.icon className="size-4" />
+                          <span>{item.title}</span>
+                          <ChevronRight
+                            className={`ml-auto size-4 transition-transform duration-200 ${
+                              isSubMenuExpanded(item.title) ? "rotate-90" : ""
+                            }`}
+                          />
+                        </SidebarMenuButton>
+                        {isSubMenuExpanded(item.title) && (
+                          <SidebarMenuSub>
+                            {item.subItems.map((subItem) => (
+                              <SidebarMenuSubItem key={subItem.title}>
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={isActive(subItem.url)}
+                                >
+                                  <Link href={subItem.url}>
+                                    <subItem.icon className="size-4" />
+                                    <span>{subItem.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        )}
+                      </>
+                    ) : (
+                      <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                        <Link href={item.url}>
+                          <item.icon className="size-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    )}
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Support</SidebarGroupLabel>
@@ -317,7 +334,7 @@ function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      
+
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -328,14 +345,21 @@ function AppSidebar() {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={session?.user?.avatar || "/placeholder-avatar.jpg"} alt={session?.user?.name || "User"} />
+                    <AvatarImage
+                      src={session?.user?.avatar || "/placeholder-avatar.jpg"}
+                      alt={session?.user?.name || "User"}
+                    />
                     <AvatarFallback className="rounded-lg">
                       {session?.user?.name?.charAt(0)?.toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{session?.user?.name || "User"}</span>
-                    <span className="truncate text-xs">{session?.user?.email || ""}</span>
+                    <span className="truncate font-semibold">
+                      {session?.user?.name || "User"}
+                    </span>
+                    <span className="truncate text-xs">
+                      {session?.user?.email || ""}
+                    </span>
                   </div>
                   <ChevronDown className="ml-auto size-4" />
                 </SidebarMenuButton>
@@ -347,13 +371,19 @@ function AppSidebar() {
                 sideOffset={4}
               >
                 <DropdownMenuItem asChild>
-                  <Link href="/dashboard/settings" className="flex items-center">
+                  <Link
+                    href="/dashboard/settings"
+                    className="flex items-center"
+                  >
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600 cursor-pointer">
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="flex items-center text-red-600 cursor-pointer"
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out
                 </DropdownMenuItem>
@@ -362,93 +392,112 @@ function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-      
+
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }
 
 function DashboardBreadcrumb() {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   const getBreadcrumbs = () => {
     // Define breadcrumb mappings
     const breadcrumbMap = {
-      '/dashboard': [{ label: 'Dashboard', href: '/dashboard' }],
-      '/dashboard/my-apps': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'My Apps', href: '/dashboard/my-apps' }
+      "/dashboard": [{ label: "Dashboard", href: "/dashboard" }],
+      "/dashboard/my-apps": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "My Apps", href: "/dashboard/my-apps" },
       ],
-      '/dashboard/applications': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Applications List', href: '/dashboard/applications' }
+      "/dashboard/applications": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Applications List", href: "/dashboard/applications" },
       ],
-      '/dashboard/billing': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Billing', href: '/dashboard/billing' }
+      "/dashboard/billing": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Billing", href: "/dashboard/billing" },
       ],
-      '/dashboard/settings': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Settings', href: '/dashboard/settings' }
+      "/dashboard/settings": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Settings", href: "/dashboard/settings" },
       ],
-      '/dashboard/admin/users': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Admin Panel', href: '#' },
-        { label: 'Manage Users', href: '/dashboard/admin/users' }
+      "/dashboard/admin/users": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Admin Panel", href: "#" },
+        { label: "Manage Users", href: "/dashboard/admin/users" },
       ],
-      '/dashboard/admin/services': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Admin Panel', href: '#' },
-        { label: 'Manage Service Catalog', href: '/dashboard/admin/services' }
+      "/dashboard/admin/services": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Admin Panel", href: "#" },
+        { label: "Manage Service Catalog", href: "/dashboard/admin/services" },
       ],
-      '/dashboard/admin/subscriptions': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Admin Panel', href: '#' },
-        { label: 'Manage Subscriptions', href: '/dashboard/admin/subscriptions' }
+      "/dashboard/admin/subscriptions": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Admin Panel", href: "#" },
+        {
+          label: "Manage Subscriptions",
+          href: "/dashboard/admin/subscriptions",
+        },
       ],
-      '/dashboard/server/nodes': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Server', href: '#' },
-        { label: 'Nodes', href: '/dashboard/server/nodes' }
+      "/dashboard/server/nodes": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Server", href: "#" },
+        { label: "Nodes", href: "/dashboard/server/nodes" },
       ],
-      '/dashboard/server/deployment': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Server', href: '#' },
-        { label: 'Deployment', href: '/dashboard/server/deployment' }
+      "/dashboard/server/deployment": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Server", href: "#" },
+        { label: "Deployment", href: "/dashboard/server/deployment" },
       ],
-      '/dashboard/server/pods': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Server', href: '#' },
-        { label: 'Pods', href: '/dashboard/server/pods' }
+      "/dashboard/server/pods": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Server", href: "#" },
+        { label: "Pods", href: "/dashboard/server/pods" },
       ],
-      '/dashboard/server/namespaces': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Server', href: '#' },
-        { label: 'Namespaces', href: '/dashboard/server/namespaces' }
+      "/dashboard/server/namespaces": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Server", href: "#" },
+        { label: "Namespaces", href: "/dashboard/server/namespaces" },
       ],
-      '/dashboard/server/network': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Server', href: '#' },
-        { label: 'Network', href: '/dashboard/server/network' }
+      "/dashboard/server/network": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Server", href: "#" },
+        { label: "Network", href: "/dashboard/server/network" },
       ],
-      '/dashboard/server/network/services': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Server', href: '#' },
-        { label: 'Network', href: '/dashboard/server/network' },
-        { label: 'Services', href: '/dashboard/server/network/services' }
+      "/dashboard/server/network/services": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Server", href: "#" },
+        { label: "Network", href: "/dashboard/server/network" },
+        { label: "Services", href: "/dashboard/server/network/services" },
       ],
-      '/dashboard/server/network/ingresses': [
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Server', href: '#' },
-        { label: 'Network', href: '/dashboard/server/network' },
-        { label: 'Ingresses', href: '/dashboard/server/network/ingresses' }
-      ]
+      "/dashboard/server/network/ingresses": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Server", href: "#" },
+        { label: "Network", href: "/dashboard/server/network" },
+        { label: "Ingresses", href: "/dashboard/server/network/ingresses" },
+      ],
+    };
+
+    // Handle dynamic routes
+    if (
+      pathname.startsWith("/dashboard/my-apps/") &&
+      pathname !== "/dashboard/my-apps"
+    ) {
+      // Extract the app ID from the path
+      const appId = pathname.split("/dashboard/my-apps/")[1];
+      return [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "My Apps", href: "/dashboard/my-apps" },
+        { label: "App Detail", href: pathname },
+      ];
     }
 
-    return breadcrumbMap[pathname] || [{ label: 'Dashboard', href: '/dashboard' }]
-  }
+    return (
+      breadcrumbMap[pathname] || [{ label: "Dashboard", href: "/dashboard" }]
+    );
+  };
 
-  const breadcrumbs = getBreadcrumbs()
+  const breadcrumbs = getBreadcrumbs();
 
   return (
     <Breadcrumb>
@@ -473,14 +522,14 @@ function DashboardBreadcrumb() {
         ))}
       </BreadcrumbList>
     </Breadcrumb>
-  )
+  );
 }
 
 export default function DashboardLayout({ children }) {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="flex flex-col" style={{ height: '98vh' }}>
+      <SidebarInset className="flex flex-col" style={{ height: "98vh" }}>
         <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b">
           <SidebarTrigger className="-ml-1" />
           <div className="flex items-center gap-2 flex-1">
@@ -490,10 +539,8 @@ export default function DashboardLayout({ children }) {
             <ThemeToggle />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-4">{children}</main>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }

@@ -41,6 +41,13 @@ export const API_ENDPOINTS = {
       DELETE: "/api/admin/users/:id", // params: { id }
       TOGGLE_STATUS: "/api/admin/users/:id/status", // params: { id }
     },
+    SUBSCRIPTIONS: {
+      GET_ALL: "/api/admin/subscriptions",
+      CREATE: "/api/admin/subscriptions",
+      UPGRADE: "/api/admin/subscriptions/:id/upgrade",
+      CANCEL: "/api/admin/subscriptions/:id/force-cancel",
+    },
+
     SERVER: {
       NODES: {
         GET_ALL: "/api/admin/k8s/nodes",
@@ -63,6 +70,10 @@ export const API_ENDPOINTS = {
         GET_ALL: "/api/admin/k8s/services",
       },
     },
+  },
+  MY_APPS: {
+    GET_ALL: "/api/subscriptions",
+    GET_BY_ID: "/api/subscriptions/:id",
   },
 };
 

@@ -397,6 +397,8 @@ export default function BillingPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {" "}
+                    <TableHead>ID</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Amount</TableHead>
@@ -408,6 +410,9 @@ export default function BillingPage() {
                 <TableBody>
                   {transactions.map((tx) => (
                     <TableRow key={tx.id}>
+                      <TableCell>
+                        <span className="font-bold">{tx.customId}</span>
+                      </TableCell>
                       <TableCell>
                         {format(new Date(tx.createdAt), "dd MMM yyyy, HH:mm")}
                       </TableCell>
