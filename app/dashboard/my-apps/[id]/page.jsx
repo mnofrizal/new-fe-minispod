@@ -79,6 +79,15 @@ export default function MyAppDetailPage() {
         const subscriptionData = result.data?.subscription;
 
         if (subscriptionData) {
+          // Check if subscription status is ACTIVE
+          if (subscriptionData.status !== "ACTIVE") {
+            toast.error(
+              "This subscription is not active. Redirecting to My Apps."
+            );
+            router.push("/dashboard/my-apps");
+            return;
+          }
+
           setSubscription(subscriptionData);
           setAutoRenew(subscriptionData.autoRenew);
         } else {
@@ -419,7 +428,7 @@ export default function MyAppDetailPage() {
                           Public URL
                         </label>
                         <div className="flex items-center space-x-2 mt-1">
-                          <div className="flex-1 p-2 bg-gray-50 rounded border text-sm font-mono truncate">
+                          <div className="flex-1 p-2 bg-gray-50 rounded-lg border text-sm font-mono truncate">
                             {subscription.instances[0].publicUrl}
                           </div>
                           <Button
@@ -433,31 +442,21 @@ export default function MyAppDetailPage() {
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              subscription.instances?.[0]?.publicUrl &&
+                              window.open(
+                                subscription.instances[0].publicUrl,
+                                "_blank"
+                              )
+                            }
+                            disabled={!subscription.instances?.[0]?.publicUrl}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
                         </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          className="flex-1"
-                          onClick={() =>
-                            window.open(
-                              subscription.instances[0].publicUrl,
-                              "_blank"
-                            )
-                          }
-                        >
-                          <Globe className="mr-2 h-4 w-4" />
-                          Open App
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() =>
-                            copyToClipboard(subscription.instances[0].publicUrl)
-                          }
-                        >
-                          <Copy className="mr-2 h-4 w-4" />
-                          Copy URL
-                        </Button>
                       </div>
                     </div>
                   ) : (

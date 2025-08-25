@@ -397,7 +397,6 @@ export default function BillingPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {" "}
                     <TableHead>ID</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Type</TableHead>
