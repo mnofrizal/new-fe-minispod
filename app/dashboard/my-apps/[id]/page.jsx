@@ -675,34 +675,38 @@ export default function MyAppDetailPage() {
                           Public URL
                         </label>
                         <div className="flex items-center space-x-2 mt-1">
-                          <div className="flex-1 p-2 bg-gray-50 rounded-lg border text-sm font-mono truncate">
-                            {subscription.instances[0].publicUrl}
+                          <div className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg border text-base font-mono truncate">
+                            <div>{subscription.instances[0].publicUrl}</div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  copyToClipboard(
+                                    subscription.instances[0].publicUrl
+                                  )
+                                }
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  subscription.instances?.[0]?.publicUrl &&
+                                  window.open(
+                                    subscription.instances[0].publicUrl,
+                                    "_blank"
+                                  )
+                                }
+                                disabled={
+                                  !subscription.instances?.[0]?.publicUrl
+                                }
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              copyToClipboard(
-                                subscription.instances[0].publicUrl
-                              )
-                            }
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              subscription.instances?.[0]?.publicUrl &&
-                              window.open(
-                                subscription.instances[0].publicUrl,
-                                "_blank"
-                              )
-                            }
-                            disabled={!subscription.instances?.[0]?.publicUrl}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
                     </div>
