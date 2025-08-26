@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -35,7 +35,10 @@ import {
   RefreshCw,
   Copy,
   Globe,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
+import { io } from "socket.io-client";
 import { ENV_CONFIG, API_ENDPOINTS } from "@/config/environment";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -49,6 +52,36 @@ export default function MyAppDetailPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [autoRenew, setAutoRenew] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [metrics, setMetrics] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [isLogConnected, setIsLogConnected] = useState(false);
+  const socketRef = useRef(null);
+  const logsContainerRef = useRef(null);
+
+  const fetchMetrics = async () => {
+    if (!session?.accessToken || !params.id) return;
+    try {
+      const response = await fetch(
+        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.MY_APPS.GET_METRICS.replace(
+          ":id",
+          params.id
+        )}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+          },
+        }
+      );
+      if (response.ok) {
+        const result = await response.json();
+        setMetrics(result.data);
+      } else {
+        console.error("Failed to fetch metrics");
+      }
+    } catch (error) {
+      console.error("Error fetching metrics:", error);
+    }
+  };
 
   useEffect(() => {
     if (session?.accessToken && params.id) {
@@ -57,6 +90,61 @@ export default function MyAppDetailPage() {
       setIsLoading(false);
     }
   }, [session, status, params.id]);
+
+  useEffect(() => {
+    if (activeTab === "monitoring") {
+      fetchMetrics(); // Fetch immediately when tab is opened
+      const intervalId = setInterval(fetchMetrics, 10000); // Poll every 10 seconds
+      return () => clearInterval(intervalId); // Cleanup on unmount or tab change
+    } else if (activeTab === "logs") {
+      if (session?.accessToken && params.id && !socketRef.current?.connected) {
+        setLogs([]);
+        const socket = io(`${ENV_CONFIG.BASE_API_URL}/k8s-logs`, {
+          auth: {
+            token: session.accessToken,
+            subscriptionId: params.id,
+          },
+        });
+        socketRef.current = socket;
+
+        socket.on("connect", () => {
+          setIsLogConnected(true);
+          setLogs((prev) => [
+            ...prev,
+            { type: "info", msg: "Connected to logs stream." },
+          ]);
+        });
+
+        socket.on("disconnect", () => {
+          setIsLogConnected(false);
+          setLogs((prev) => [
+            ...prev,
+            { type: "info", msg: "Disconnected from logs stream." },
+          ]);
+        });
+
+        socket.on("log-data", (data) => {
+          setLogs((prev) => [...prev, { type: "data", msg: data.trim() }]);
+        });
+
+        socket.on("log-error", (error) => {
+          setLogs((prev) => [...prev, { type: "error", msg: error }]);
+        });
+
+        return () => {
+          socket.disconnect();
+          socketRef.current = null;
+        };
+      }
+    }
+  }, [activeTab, session, params.id]);
+
+  useEffect(() => {
+    if (logsContainerRef.current) {
+      logsContainerRef.current.scrollTop =
+        logsContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
 
   const fetchSubscriptionDetail = async () => {
     if (!session?.accessToken) return;
@@ -146,13 +234,14 @@ export default function MyAppDetailPage() {
 
   const calculateUsagePercentage = (used, total) => {
     if (!used || !total) return 0;
+    if (total === 0) return 0;
     return Math.min((parseFloat(used) / total) * 100, 100);
   };
 
   const handleRefreshData = async () => {
     setIsRefreshing(true);
     try {
-      await fetchSubscriptionDetail();
+      await Promise.all([fetchSubscriptionDetail(), fetchMetrics()]);
       toast.success("Data refreshed successfully");
     } catch (error) {
       toast.error("Failed to refresh data");
@@ -168,6 +257,164 @@ export default function MyAppDetailPage() {
     } catch (error) {
       toast.error("Failed to copy to clipboard");
     }
+  };
+
+  // Socket connection functions
+  const connectToLogs = () => {
+    if (!session?.accessToken || !params.id || socketRef.current?.connected)
+      return;
+
+    // Clear old logs when reconnecting
+    setLogs([]);
+
+    const socket = io(`${ENV_CONFIG.BASE_API_URL}/k8s-logs`, {
+      auth: {
+        token: session.accessToken,
+        subscriptionId: params.id,
+      },
+    });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      setIsLogConnected(true);
+      setLogs((prev) => [
+        ...prev,
+        { type: "info", msg: "Connected to logs stream." },
+      ]);
+      toast.success("Connected to logs stream");
+    });
+
+    socket.on("disconnect", () => {
+      setIsLogConnected(false);
+      setLogs((prev) => [
+        ...prev,
+        { type: "info", msg: "Disconnected from logs stream." },
+      ]);
+      toast.info("Disconnected from logs stream");
+    });
+
+    socket.on("log-data", (data) => {
+      setLogs((prev) => [...prev, { type: "data", msg: data.trim() }]);
+    });
+
+    socket.on("log-error", (error) => {
+      setLogs((prev) => [...prev, { type: "error", msg: error }]);
+    });
+  };
+
+  const disconnectFromLogs = () => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+      setIsLogConnected(false);
+      toast.info("Manually disconnected from logs stream");
+    }
+  };
+
+  // Helper function to parse log entries
+  const parseLogEntry = (logMessage) => {
+    // Parse log format: [2025-08-26 15:37:50] INFO "GET /healthz" 301 2ms
+    const logRegex = /^\[([^\]]+)\]\s+(\w+)\s+(.*)$/;
+    const match = logMessage.match(logRegex);
+
+    if (!match) {
+      return {
+        timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
+        level: "INFO",
+        message: logMessage,
+        method: null,
+        path: null,
+        statusCode: null,
+        duration: null,
+      };
+    }
+
+    const [, timestamp, level, rest] = match;
+
+    // Try to parse HTTP request format: "GET /healthz" 301 2ms
+    const httpRegex = /^"(\w+)\s+([^"]+)"\s+(\d+)\s+(\d+ms)$/;
+    const httpMatch = rest.match(httpRegex);
+
+    if (httpMatch) {
+      const [, method, path, statusCode, duration] = httpMatch;
+      return {
+        timestamp,
+        level,
+        method,
+        path,
+        statusCode: parseInt(statusCode),
+        duration,
+        message: null,
+      };
+    }
+
+    // If not HTTP format, treat as regular message
+    return {
+      timestamp,
+      level,
+      message: rest,
+      method: null,
+      path: null,
+      statusCode: null,
+      duration: null,
+    };
+  };
+
+  // Component for log level badges
+  const LogLevelBadge = ({ level }) => {
+    const getLogLevelStyle = (level) => {
+      switch (level?.toUpperCase()) {
+        case "ERROR":
+          return "bg-red-500/20 text-red-400 border-red-500/30";
+        case "WARN":
+        case "WARNING":
+          return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+        case "INFO":
+          return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+        case "DEBUG":
+          return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+        case "SUCCESS":
+          return "bg-green-500/20 text-green-400 border-green-500/30";
+        default:
+          return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+      }
+    };
+
+    return (
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getLogLevelStyle(
+          level
+        )}`}
+      >
+        {level}
+      </span>
+    );
+  };
+
+  // Component for status code badges
+  const StatusCodeBadge = ({ code }) => {
+    const getStatusCodeStyle = (code) => {
+      if (code >= 200 && code < 300) {
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      } else if (code >= 300 && code < 400) {
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      } else if (code >= 400 && code < 500) {
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      } else if (code >= 500) {
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      }
+      return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+    };
+
+    return (
+      <span
+        className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium border ${getStatusCodeStyle(
+          code
+        )}`}
+      >
+        {code}
+      </span>
+    );
   };
 
   if (status === "loading" || isLoading) {
@@ -664,28 +911,39 @@ export default function MyAppDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {calculateUsagePercentage(
-                    subscription.instances?.[0]?.cpuUsage,
-                    subscription.plan.cpuMilli
-                  ).toFixed(1)}
+                  {metrics
+                    ? metrics.cpu.percentage.toFixed(1)
+                    : calculateUsagePercentage(
+                        subscription.instances?.[0]?.cpuUsage,
+                        subscription.plan.cpuMilli
+                      ).toFixed(1)}
                   %
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                   <div
                     className="bg-blue-600 h-2 rounded-full"
                     style={{
-                      width: `${calculateUsagePercentage(
-                        subscription.instances?.[0]?.cpuUsage,
-                        subscription.plan.cpuMilli
-                      )}%`,
+                      width: `${
+                        metrics
+                          ? metrics.cpu.percentage
+                          : calculateUsagePercentage(
+                              subscription.instances?.[0]?.cpuUsage,
+                              subscription.plan.cpuMilli
+                            )
+                      }%`,
                     }}
                   ></div>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {(
-                    (subscription.instances?.[0]?.cpuUsage || 0) / 1000
-                  ).toFixed(2)}{" "}
-                  of {(subscription.plan.cpuMilli / 1000).toFixed(2)} cores
+                  {metrics
+                    ? `${(metrics.cpu.usage / 1000).toFixed(2)} of ${(
+                        metrics.cpu.limit / 1000
+                      ).toFixed(2)} cores`
+                    : `${(
+                        (subscription.instances?.[0]?.cpuUsage || 0) / 1000
+                      ).toFixed(2)} of ${(
+                        subscription.plan.cpuMilli / 1000
+                      ).toFixed(2)} cores`}
                 </p>
               </CardContent>
             </Card>
@@ -699,26 +957,37 @@ export default function MyAppDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {calculateUsagePercentage(
-                    subscription.instances?.[0]?.memoryUsage,
-                    subscription.plan.memoryMb
-                  ).toFixed(1)}
+                  {metrics
+                    ? metrics.memory.percentage.toFixed(1)
+                    : calculateUsagePercentage(
+                        subscription.instances?.[0]?.memoryUsage,
+                        subscription.plan.memoryMb
+                      ).toFixed(1)}
                   %
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                   <div
                     className="bg-green-600 h-2 rounded-full"
                     style={{
-                      width: `${calculateUsagePercentage(
-                        subscription.instances?.[0]?.memoryUsage,
-                        subscription.plan.memoryMb
-                      )}%`,
+                      width: `${
+                        metrics
+                          ? metrics.memory.percentage
+                          : calculateUsagePercentage(
+                              subscription.instances?.[0]?.memoryUsage,
+                              subscription.plan.memoryMb
+                            )
+                      }%`,
                     }}
                   ></div>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {subscription.instances?.[0]?.memoryUsage || 0}MB of{" "}
-                  {subscription.plan.memoryMb}MB
+                  {metrics
+                    ? `${metrics.memory.usage.toFixed(2)}MB of ${
+                        metrics.memory.limit
+                      }MB`
+                    : `${subscription.instances?.[0]?.memoryUsage || 0}MB of ${
+                        subscription.plan.memoryMb
+                      }MB`}
                 </p>
               </CardContent>
             </Card>
@@ -859,52 +1128,119 @@ export default function MyAppDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="bg-gray-50 p-4 rounded-lg font-mono text-sm max-h-96 overflow-y-auto">
-                  <div className="space-y-1">
-                    <div className="text-green-600">
-                      [2024-01-15 10:30:15] INFO: Application started
-                      successfully
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          isLogConnected ? "bg-green-500" : "bg-red-500"
+                        }`}
+                      />
+                      <span className="text-sm font-medium">
+                        {isLogConnected ? "Connected" : "Disconnected"}
+                      </span>
                     </div>
-                    <div className="text-blue-600">
-                      [2024-01-15 10:30:16] DEBUG: Database connection
-                      established
-                    </div>
-                    <div className="text-gray-600">
-                      [2024-01-15 10:30:17] INFO: Server listening on port 3000
-                    </div>
-                    <div className="text-yellow-600">
-                      [2024-01-15 10:35:22] WARN: High memory usage detected
-                      (75%)
-                    </div>
-                    <div className="text-green-600">
-                      [2024-01-15 10:40:33] INFO: Backup completed successfully
-                    </div>
-                    <div className="text-red-600">
-                      [2024-01-15 10:45:12] ERROR: Failed to connect to external
-                      API
-                    </div>
-                    <div className="text-blue-600">
-                      [2024-01-15 10:45:15] DEBUG: Retrying API connection...
-                    </div>
-                    <div className="text-green-600">
-                      [2024-01-15 10:45:18] INFO: API connection restored
-                    </div>
-                    <div className="text-gray-600">
-                      [2024-01-15 10:50:25] INFO: Processing user request
-                    </div>
-                    <div className="text-blue-600">
-                      [2024-01-15 10:55:33] DEBUG: Cache cleared successfully
+                    <div className="text-sm text-muted-foreground">
+                      {logs.length} log entries
                     </div>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLogs([])}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={
+                        isLogConnected ? disconnectFromLogs : connectToLogs
+                      }
+                    >
+                      {isLogConnected ? (
+                        <>
+                          <WifiOff className="mr-2 h-4 w-4" />
+                          Disconnect
+                        </>
+                      ) : (
+                        <>
+                          <Wifi className="mr-2 h-4 w-4" />
+                          Connect
+                        </>
+                      )}
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <FileText className="mr-2 h-4 w-4" />
+                      Download
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <Button variant="outline" size="sm">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Download Logs
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    Refresh
-                  </Button>
+
+                <div
+                  ref={logsContainerRef}
+                  className="bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-sm overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+                  style={{ height: "calc(100vh - 500px)" }}
+                >
+                  {logs.length === 0 ? (
+                    <div className="text-slate-400 text-center py-8">
+                      <FileText className="mx-auto h-8 w-8 mb-2 opacity-50" />
+                      <p>No logs available</p>
+                      <p className="text-xs mt-1">
+                        Logs will appear here when your application generates
+                        them
+                      </p>
+                    </div>
+                  ) : (
+                    logs.map((log, i) => {
+                      const logEntry = parseLogEntry(log.msg);
+                      return (
+                        <div
+                          key={i}
+                          className="flex items-center space-x-3 py-1 hover:bg-slate-900/50 rounded px-2 -mx-2 transition-colors text-sm"
+                        >
+                          <LogLevelBadge level={logEntry.level} />
+                          <span className="text-slate-500 font-medium texts-sm">
+                            {logEntry.timestamp}
+                          </span>
+                          {logEntry.method && logEntry.path ? (
+                            <>
+                              <span className="text-blue-400 font-medium">
+                                {logEntry.method}
+                              </span>
+                              <span className="text-slate-300">
+                                {logEntry.path}
+                              </span>
+                              {logEntry.statusCode && (
+                                <StatusCodeBadge code={logEntry.statusCode} />
+                              )}
+                              {logEntry.duration && (
+                                <span className="text-yellow-400">
+                                  {logEntry.duration}
+                                </span>
+                              )}
+                            </>
+                          ) : typeof logEntry.message === "string" &&
+                            (logEntry.message.startsWith("http://") ||
+                              logEntry.message.startsWith("https://")) ? (
+                            <a
+                              href={logEntry.message}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-orange-400  hover:text-orange-300 transition-colors"
+                            >
+                              {logEntry.message}
+                            </a>
+                          ) : (
+                            <span className="text-slate-100">
+                              {logEntry.message}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </CardContent>

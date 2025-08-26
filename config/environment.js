@@ -74,6 +74,7 @@ export const API_ENDPOINTS = {
   MY_APPS: {
     GET_ALL: "/api/subscriptions",
     GET_BY_ID: "/api/subscriptions/:id",
+    GET_METRICS: "/api/subscriptions/:id/metrics",
   },
 };
 
