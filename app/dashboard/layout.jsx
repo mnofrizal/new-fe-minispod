@@ -62,6 +62,7 @@ import {
   Network,
   WifiIcon,
   Router,
+  Ticket,
 } from "lucide-react";
 
 const menuItems = {
@@ -99,6 +100,11 @@ const menuItems = {
       title: "Manage Subscriptions",
       url: "/dashboard/admin/subscriptions",
       icon: SubscriptionIcon,
+    },
+    {
+      title: "Manage Coupons",
+      url: "/dashboard/admin/coupons",
+      icon: Ticket,
     },
   ],
   server: [
@@ -438,6 +444,11 @@ function DashboardBreadcrumb() {
           label: "Manage Subscriptions",
           href: "/dashboard/admin/subscriptions",
         },
+      ],
+      "/dashboard/admin/coupons": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Admin Panel", href: "#" },
+        { label: "Manage Coupons", href: "/dashboard/admin/coupons" },
       ],
       "/dashboard/server/nodes": [
         { label: "Dashboard", href: "/dashboard" },

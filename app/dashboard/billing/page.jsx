@@ -46,6 +46,7 @@ import {
   PlusCircle,
   TrendingDown,
   TrendingUp,
+  Ticket,
 } from "lucide-react";
 import { ENV_CONFIG, API_ENDPOINTS } from "@/config/environment";
 import { format } from "date-fns";
@@ -58,6 +59,9 @@ export default function BillingPage() {
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("");
   const [isToppingUp, setIsToppingUp] = useState(false);
+  const [redeemDialogOpen, setRedeemDialogOpen] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [isRedeeming, setIsRedeeming] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalTransactions, setTotalTransactions] = useState(0);
@@ -148,6 +152,65 @@ export default function BillingPage() {
       toast.error("Error initiating top-up.");
     } finally {
       setIsToppingUp(false);
+    }
+  };
+
+  const handleRedeemCoupon = async () => {
+    if (!session?.accessToken || !couponCode.trim()) {
+      toast.error("Please enter a valid coupon code.");
+      return;
+    }
+
+    setIsRedeeming(true);
+    try {
+      const response = await fetch(
+        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.WALLET.REDEEM_COUPON}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            couponCode: couponCode.trim().toUpperCase(),
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        toast.success(result.message || "Coupon redeemed successfully!", {
+          style: {
+            background: "#10b981",
+            color: "white",
+            border: "1px solid #059669",
+          },
+        });
+        setRedeemDialogOpen(false);
+        setCouponCode("");
+        // Refresh wallet info and transactions
+        fetchWalletInfo();
+        fetchTransactions(currentPage);
+      } else {
+        toast.error(result.message || "Failed to redeem coupon.", {
+          style: {
+            background: "#ef4444",
+            color: "white",
+            border: "1px solid #dc2626",
+          },
+        });
+      }
+    } catch (error) {
+      toast.error("Error redeeming coupon.", {
+        style: {
+          background: "#ef4444",
+          color: "white",
+          border: "1px solid #dc2626",
+        },
+      });
+    } finally {
+      setIsRedeeming(false);
     }
   };
 
@@ -297,10 +360,19 @@ export default function BillingPage() {
                 Your current balance and wallet details.
               </CardDescription>
             </div>
-            <Button onClick={() => setTopUpDialogOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Top Up
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setTopUpDialogOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Top Up
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setRedeemDialogOpen(true)}
+              >
+                <Ticket className="mr-2 h-4 w-4" />
+                Redeem
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="grid gap-6 md:grid-cols-3">
             <div className="flex flex-col justify-between p-6 bg-primary text-primary-foreground rounded-lg">
@@ -418,7 +490,10 @@ export default function BillingPage() {
                       <TableCell>
                         <Badge
                           variant={
-                            tx.type === "TOP_UP" ? "outline" : "secondary"
+                            tx.type === "TOP_UP" ||
+                            tx.type === "COUPON_REDEMPTION"
+                              ? "outline"
+                              : "secondary"
                           }
                         >
                           {tx.type.replace("_", " ")}
@@ -426,12 +501,15 @@ export default function BillingPage() {
                       </TableCell>
                       <TableCell
                         className={`font-medium ${
-                          tx.type === "TOP_UP"
+                          tx.type === "TOP_UP" ||
+                          tx.type === "COUPON_REDEMPTION"
                             ? "text-green-600"
                             : "text-red-600"
                         }`}
                       >
-                        {tx.type === "TOP_UP" ? "+" : "-"}{" "}
+                        {tx.type === "TOP_UP" || tx.type === "COUPON_REDEMPTION"
+                          ? "+"
+                          : "-"}{" "}
                         {formatCurrency(tx.amount)}
                       </TableCell>
                       <TableCell>
@@ -540,6 +618,67 @@ export default function BillingPage() {
             </Button>
             <Button onClick={handleTopUp} disabled={isToppingUp}>
               {isToppingUp ? "Processing..." : "Top Up Now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Redeem Coupon Dialog */}
+      <Dialog open={redeemDialogOpen} onOpenChange={setRedeemDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Redeem Coupon</DialogTitle>
+            <DialogDescription>
+              Enter your coupon code to redeem credits or discounts.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="couponCode" className="text-right">
+                Code
+              </Label>
+              <Input
+                id="couponCode"
+                type="text"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                className="col-span-3 font-mono"
+                placeholder="e.g., WELCOME50K"
+                maxLength={50}
+              />
+            </div>
+            <div className="text-sm text-muted-foreground px-4">
+              <p>• Enter your coupon code exactly as provided</p>
+              <p>• Codes are case-insensitive</p>
+              <p>• Each coupon can only be used once per user</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRedeemDialogOpen(false);
+                setCouponCode("");
+              }}
+              disabled={isRedeeming}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRedeemCoupon}
+              disabled={isRedeeming || !couponCode.trim()}
+            >
+              {isRedeeming ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Redeeming...
+                </>
+              ) : (
+                <>
+                  <Ticket className="mr-2 h-4 w-4" />
+                  Redeem Coupon
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

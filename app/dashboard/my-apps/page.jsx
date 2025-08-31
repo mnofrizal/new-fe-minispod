@@ -174,15 +174,23 @@ export default function MyAppsPage() {
     return instance ? instance.publicUrl : null;
   };
 
-  // Helper function to determine if app can be opened (active subscription + healthy instance)
+  // Helper function to determine if app can be opened (active subscription + running instance)
   const canOpenApp = (subscription) => {
     const instance = getInstance(subscription);
     return (
       subscription.status === "ACTIVE" &&
       instance &&
-      instance.status !== "ERROR" &&
+      instance.status === "RUNNING" &&
       instance.publicUrl
     );
+  };
+
+  // Helper function to get button text based on instance status
+  const getButtonText = (subscription) => {
+    const instance = getInstance(subscription);
+    if (!instance) return "No Instance";
+    if (instance.status === "RUNNING") return "Open App";
+    return instance.status; // Show the actual status (ERROR, PROVISIONING, PENDING, STOPPED, etc.)
   };
 
   if (status === "loading" || isLoading) {
@@ -411,9 +419,9 @@ export default function MyAppsPage() {
                             subscription.status === "PENDING_DEPLOYMENT" ||
                             (instance && instance.status === "PROVISIONING")
                           ) {
-                            return "Deploying...";
-                          } else if (instance && instance.status === "ERROR") {
-                            return "Error";
+                            return "Provisioning";
+                          } else if (!canOpenApp(subscription)) {
+                            return instance.status;
                           } else if (canOpenApp(subscription)) {
                             return "Open App";
                           } else {
@@ -491,21 +499,7 @@ export default function MyAppsPage() {
                     }}
                   >
                     <ExternalLink className="mr-2 h-4 w-4" />
-                    {(() => {
-                      const instance = getInstance(subscription);
-                      if (
-                        subscription.status === "PENDING_DEPLOYMENT" ||
-                        (instance && instance.status === "PROVISIONING")
-                      ) {
-                        return "Deploying...";
-                      } else if (instance && instance.status === "ERROR") {
-                        return "Error";
-                      } else if (canOpenApp(subscription)) {
-                        return "Open App";
-                      } else {
-                        return "View Details";
-                      }
-                    })()}
+                    {getButtonText(subscription)}
                   </Button>
                   <Button
                     variant="outline"

@@ -26,11 +26,19 @@ export const API_ENDPOINTS = {
     },
     TOPUP: "/api/wallet/topup",
     STATISTICS: "/api/wallet/statistics",
+    REDEEM_COUPON: "/api/wallet/redeem-coupon",
   },
   CATALOG: {
     SERVICES: {
       GET_ALL: "/api/catalog/services",
     },
+  },
+
+  SUBSCRIPTIONS: {
+    CREATE: "/api/subscriptions",
+    GET_BY_ID: "/api/subscriptions/:id",
+    UPGRADE: "/api/subscriptions/:id/upgrade",
+    AUTO_RENEW_TOGGLE: "/api/subscriptions/:id/auto-renew",
   },
   ADMIN: {
     USERS: {
@@ -47,7 +55,12 @@ export const API_ENDPOINTS = {
       UPGRADE: "/api/admin/subscriptions/:id/upgrade",
       CANCEL: "/api/admin/subscriptions/:id/force-cancel",
     },
-
+    MANAGE_COUPONS: {
+      GET_ALL: "/api/admin/coupons",
+      CREATE: "/api/admin/coupons",
+      UPDATE: "/api/admin/coupons/:id",
+      DELETE: "/api/admin/coupons/:id",
+    },
     SERVER: {
       NODES: {
         GET_ALL: "/api/admin/k8s/nodes",
@@ -75,6 +88,11 @@ export const API_ENDPOINTS = {
     GET_ALL: "/api/subscriptions",
     GET_BY_ID: "/api/subscriptions/:id",
     GET_METRICS: "/api/subscriptions/:id/metrics",
+    GET_BILLING_INFO: "/api/subscriptions/:id/billing-info",
+    STOP: "/api/subscriptions/:id/stop",
+    RESTART: "/api/subscriptions/:id/restart",
+    START: "/api/subscriptions/:id/start",
+    RETRY_PROVISIONING: "/api/subscriptions/:id/retry-provisioning",
   },
 };
 

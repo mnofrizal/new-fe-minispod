@@ -16,6 +16,20 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ArrowLeft,
   Settings,
   ExternalLink,
@@ -37,6 +51,9 @@ import {
   Globe,
   Wifi,
   WifiOff,
+  ChevronDown,
+  Play,
+  RotateCw,
 } from "lucide-react";
 import { io } from "socket.io-client";
 import { ENV_CONFIG, API_ENDPOINTS } from "@/config/environment";
@@ -51,10 +68,31 @@ export default function MyAppDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [autoRenew, setAutoRenew] = useState(false);
+  const [isAutoRenewLoading, setIsAutoRenewLoading] = useState(false);
+  const [autoRenewMessage, setAutoRenewMessage] = useState("");
+  const [autoRenewNextSteps, setAutoRenewNextSteps] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metrics, setMetrics] = useState(null);
   const [logs, setLogs] = useState([]);
   const [isLogConnected, setIsLogConnected] = useState(false);
+  const [billingInfo, setBillingInfo] = useState(null);
+  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState("");
+  const [isStopLoading, setIsStopLoading] = useState(false);
+  const [isRestartLoading, setIsRestartLoading] = useState(false);
+  const [isStartLoading, setIsStartLoading] = useState(false);
+  const [isRetryLoading, setIsRetryLoading] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [showProvisioningDialog, setShowProvisioningDialog] = useState(false);
+  const [upgradeProvisioningStatus, setUpgradeProvisioningStatus] = useState({
+    isProvisioning: false,
+    status: "PENDING",
+    healthStatus: "Unknown",
+    publicUrl: null,
+    adminUrl: null,
+  });
+  const [upgradePollingInterval, setUpgradePollingInterval] = useState(null);
+  const [upgradeToastId, setUpgradeToastId] = useState(null);
   const socketRef = useRef(null);
   const logsContainerRef = useRef(null);
 
@@ -83,6 +121,294 @@ export default function MyAppDetailPage() {
     }
   };
 
+  const fetchBillingInfo = async () => {
+    if (!session?.accessToken || !params.id) return;
+    try {
+      const response = await fetch(
+        `${
+          ENV_CONFIG.BASE_API_URL
+        }${API_ENDPOINTS.MY_APPS.GET_BILLING_INFO.replace(":id", params.id)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+          },
+        }
+      );
+      if (response.ok) {
+        const result = await response.json();
+        setBillingInfo(result.data);
+      } else {
+        console.error("Failed to fetch billing info");
+      }
+    } catch (error) {
+      console.error("Error fetching billing info:", error);
+    }
+  };
+
+  const handleStopInstance = async () => {
+    if (!session?.accessToken || !params.id) return;
+
+    setIsStopLoading(true);
+    try {
+      const response = await fetch(
+        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.MY_APPS.STOP.replace(
+          ":id",
+          params.id
+        )}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message || "Instance stopped successfully");
+        // Refresh subscription data to update status
+        await fetchSubscriptionDetail();
+      } else {
+        const errorResult = await response.json();
+        toast.error(errorResult.message || "Failed to stop instance");
+      }
+    } catch (error) {
+      toast.error("Error stopping instance");
+    } finally {
+      setIsStopLoading(false);
+    }
+  };
+
+  const handleRestartInstance = async () => {
+    if (!session?.accessToken || !params.id) return;
+
+    setIsRestartLoading(true);
+    try {
+      const response = await fetch(
+        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.MY_APPS.RESTART.replace(
+          ":id",
+          params.id
+        )}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message || "Instance restarted successfully");
+        // Refresh subscription data to update status
+        await fetchSubscriptionDetail();
+      } else {
+        const errorResult = await response.json();
+        toast.error(errorResult.message || "Failed to restart instance");
+      }
+    } catch (error) {
+      toast.error("Error restarting instance");
+    } finally {
+      setIsRestartLoading(false);
+    }
+  };
+
+  const handleStartInstance = async () => {
+    if (!session?.accessToken || !params.id) return;
+
+    setIsStartLoading(true);
+    try {
+      const response = await fetch(
+        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.MY_APPS.START.replace(
+          ":id",
+          params.id
+        )}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message || "Instance started successfully");
+        // Refresh subscription data to update status
+        await fetchSubscriptionDetail();
+      } else {
+        const errorResult = await response.json();
+        toast.error(errorResult.message || "Failed to start instance");
+      }
+    } catch (error) {
+      toast.error("Error starting instance");
+    } finally {
+      setIsStartLoading(false);
+    }
+  };
+
+  const handleRetryProvisioning = async () => {
+    if (!session?.accessToken || !params.id) return;
+
+    setIsRetryLoading(true);
+    try {
+      const response = await fetch(
+        `${
+          ENV_CONFIG.BASE_API_URL
+        }${API_ENDPOINTS.MY_APPS.RETRY_PROVISIONING.replace(":id", params.id)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(
+          result.message || "Retry provisioning started successfully"
+        );
+        // Refresh subscription data to update status
+        await fetchSubscriptionDetail();
+      } else {
+        const errorResult = await response.json();
+        toast.error(errorResult.message || "Failed to retry provisioning");
+      }
+    } catch (error) {
+      toast.error("Error retrying provisioning");
+    } finally {
+      setIsRetryLoading(false);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    if (!session?.accessToken || !params.id || !selectedUpgradePlan) return;
+
+    try {
+      setIsUpgrading(true);
+
+      const response = await fetch(
+        `${
+          ENV_CONFIG.BASE_API_URL
+        }${API_ENDPOINTS.SUBSCRIPTIONS.UPGRADE.replace(":id", params.id)}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            newPlanId: selectedUpgradePlan,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setShowUpgradeDialog(false);
+        setShowProvisioningDialog(true);
+        setUpgradeProvisioningStatus({
+          isProvisioning: true,
+          status: "PROVISIONING",
+          healthStatus: "Unknown",
+          publicUrl: null,
+          adminUrl: null,
+        });
+
+        // Start polling for upgrade status
+        startUpgradePolling(params.id);
+        toast.success("Upgrade started successfully!");
+      } else {
+        toast.error(data.message || "Failed to upgrade service");
+      }
+    } catch (err) {
+      toast.error("An error occurred while upgrading the service");
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
+
+  const startUpgradePolling = (subscriptionId) => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${
+            ENV_CONFIG.BASE_API_URL
+          }${API_ENDPOINTS.SUBSCRIPTIONS.GET_BY_ID.replace(
+            ":id",
+            subscriptionId
+          )}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${session.accessToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const result = await response.json();
+
+          if (result.data && result.data.subscription) {
+            const subscription = result.data.subscription;
+
+            if (subscription.instances && subscription.instances.length > 0) {
+              const instance = subscription.instances[0];
+              const isReady =
+                instance.status === "RUNNING" &&
+                instance.healthStatus === "Healthy";
+
+              setUpgradeProvisioningStatus({
+                isProvisioning: !isReady,
+                status: instance.status,
+                healthStatus: instance.healthStatus,
+                publicUrl: instance.publicUrl,
+                adminUrl: instance.adminUrl,
+              });
+
+              // Show success toast when upgrade is complete
+              if (isReady) {
+                toast.success("🎉 Upgrade Complete!", {
+                  description: `Your service has been successfully upgraded`,
+                });
+                // Refresh subscription data
+                await fetchSubscriptionDetail();
+              }
+
+              // Stop polling when service is running and healthy
+              if (isReady) {
+                clearInterval(interval);
+                setUpgradePollingInterval(null);
+              }
+            } else {
+              // No instances yet, keep provisioning status
+              setUpgradeProvisioningStatus((prev) => ({
+                ...prev,
+                status: "PROVISIONING",
+                healthStatus: "Unknown",
+              }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error polling upgrade status:", error);
+      }
+    }, 3000);
+
+    setUpgradePollingInterval(interval);
+  };
+
+  const handleUpgradeDialogClose = (open) => {
+    setShowProvisioningDialog(open);
+  };
+
   useEffect(() => {
     if (session?.accessToken && params.id) {
       fetchSubscriptionDetail();
@@ -96,6 +422,8 @@ export default function MyAppDetailPage() {
       fetchMetrics(); // Fetch immediately when tab is opened
       const intervalId = setInterval(fetchMetrics, 10000); // Poll every 10 seconds
       return () => clearInterval(intervalId); // Cleanup on unmount or tab change
+    } else if (activeTab === "billing") {
+      fetchBillingInfo(); // Fetch billing info when billing tab is opened
     } else if (activeTab === "logs") {
       if (session?.accessToken && params.id && !socketRef.current?.connected) {
         setLogs([]);
@@ -138,6 +466,18 @@ export default function MyAppDetailPage() {
       }
     }
   }, [activeTab, session, params.id]);
+
+  // Auto-select first available upgrade plan when billing info loads
+  useEffect(() => {
+    if (
+      billingInfo?.availableUpgrades &&
+      billingInfo.availableUpgrades.length > 0
+    ) {
+      setSelectedUpgradePlan(billingInfo.availableUpgrades[0].id);
+    } else {
+      setSelectedUpgradePlan("");
+    }
+  }, [billingInfo]);
 
   useEffect(() => {
     if (logsContainerRef.current) {
@@ -241,12 +581,95 @@ export default function MyAppDetailPage() {
   const handleRefreshData = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([fetchSubscriptionDetail(), fetchMetrics()]);
+      const promises = [fetchSubscriptionDetail()];
+      if (activeTab === "monitoring") {
+        promises.push(fetchMetrics());
+      }
+      if (activeTab === "billing") {
+        promises.push(fetchBillingInfo());
+      }
+      await Promise.all(promises);
       toast.success("Data refreshed successfully");
     } catch (error) {
       toast.error("Failed to refresh data");
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleAutoRenewToggle = async (newAutoRenewValue) => {
+    if (!session?.accessToken || !params.id) return;
+
+    setIsAutoRenewLoading(true);
+    try {
+      const response = await fetch(
+        `${
+          ENV_CONFIG.BASE_API_URL
+        }${API_ENDPOINTS.SUBSCRIPTIONS.AUTO_RENEW_TOGGLE.replace(
+          ":id",
+          params.id
+        )}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            autoRenew: newAutoRenewValue,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        setAutoRenew(newAutoRenewValue);
+
+        // Update auto-renew message and next steps from API response
+        if (result.data?.message) {
+          setAutoRenewMessage(result.data.message);
+        }
+        if (result.data?.nextSteps) {
+          setAutoRenewNextSteps(result.data.nextSteps);
+        }
+
+        // Update billing info with the latest data from API response
+        if (result.data?.billingInfo) {
+          setBillingInfo((prevBillingInfo) => ({
+            ...prevBillingInfo,
+            billingInfo: {
+              ...prevBillingInfo?.billingInfo,
+              ...result.data.billingInfo,
+            },
+          }));
+        }
+
+        // Update subscription data with the latest data from API response
+        if (result.data?.subscription) {
+          setSubscription((prevSubscription) => ({
+            ...prevSubscription,
+            ...result.data.subscription,
+          }));
+        }
+
+        toast.success(
+          result.message ||
+            `Auto-renew ${
+              newAutoRenewValue ? "enabled" : "disabled"
+            } successfully`
+        );
+        // Refresh subscription data to ensure consistency
+        await fetchSubscriptionDetail();
+      } else {
+        const errorResult = await response.json();
+        toast.error(
+          errorResult.message || "Failed to update auto-renew setting"
+        );
+      }
+    } catch (error) {
+      toast.error("Error updating auto-renew setting");
+    } finally {
+      setIsAutoRenewLoading(false);
     }
   };
 
@@ -494,14 +917,78 @@ export default function MyAppDetailPage() {
               {subscription.instances[0].status}
             </Badge>
           )}
-          <Button variant="outline">
-            <Square className="mr-2 h-4 w-4" />
-            Stop
-          </Button>
-          <Button variant="outline">
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Restart
-          </Button>
+          {subscription.instances?.[0]?.status === "ERROR" ||
+          subscription.instances?.[0]?.status === "PROVISIONING" ||
+          subscription.instances?.[0]?.status === "PENDING" ? (
+            <Button
+              variant="outline"
+              onClick={handleRetryProvisioning}
+              disabled={
+                isRetryLoading ||
+                subscription.instances?.[0]?.status === "PROVISIONING" ||
+                subscription.instances?.[0]?.status === "PENDING"
+              }
+            >
+              <RotateCw className="mr-2 h-4 w-4" />
+              {subscription.instances?.[0]?.status === "PROVISIONING"
+                ? "Provisioning..."
+                : subscription.instances?.[0]?.status === "PENDING"
+                ? "Pending..."
+                : isRetryLoading
+                ? "Retrying..."
+                : "Retry Deploy"}
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={
+                  subscription.instances?.[0]?.status === "STOPPED"
+                    ? handleStartInstance
+                    : handleStopInstance
+                }
+                disabled={
+                  !subscription.instances?.[0]?.status ||
+                  isStartLoading ||
+                  isStopLoading ||
+                  isRestartLoading ||
+                  subscription.instances?.[0]?.status === "RESTARTING" ||
+                  subscription.instances?.[0]?.status === "STOPPING" ||
+                  subscription.instances?.[0]?.status === "STARTING"
+                }
+              >
+                {subscription.instances?.[0]?.status === "STOPPED" ? (
+                  <Play className="mr-2 h-4 w-4" />
+                ) : (
+                  <Square className="mr-2 h-4 w-4" />
+                )}
+                {subscription.instances?.[0]?.status === "STOPPED"
+                  ? isStartLoading
+                    ? "Starting..."
+                    : "Start"
+                  : isStopLoading
+                  ? "Stopping..."
+                  : "Stop"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleRestartInstance}
+                disabled={
+                  !subscription.instances?.[0]?.status ||
+                  isStartLoading ||
+                  isStopLoading ||
+                  isRestartLoading ||
+                  subscription.instances?.[0]?.status === "STOPPED" ||
+                  subscription.instances?.[0]?.status === "RESTARTING" ||
+                  subscription.instances?.[0]?.status === "STOPPING" ||
+                  subscription.instances?.[0]?.status === "STARTING"
+                }
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                {isRestartLoading ? "Restarting..." : "Restart"}
+              </Button>
+            </>
+          )}
           <Button
             onClick={() =>
               subscription.instances?.[0]?.publicUrl &&
@@ -1253,92 +1740,276 @@ export default function MyAppDetailPage() {
 
         {/* Billing Tab */}
         <TabsContent value="billing" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Current Plan Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Current Plan</CardTitle>
-                <CardDescription>
-                  Your active subscription details
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Plan:</span>
-                  <span className="font-medium">{subscription.plan.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Monthly Price:</span>
-                  <span className="font-medium">
-                    {formatCurrency(subscription.monthlyPrice)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Next Billing:</span>
-                  <span className="font-medium">
-                    {subscription.nextBilling
-                      ? format(
-                          new Date(subscription.nextBilling),
-                          "dd MMM yyyy"
-                        )
-                      : "N/A"}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Auto Renew:</span>
-                  <Switch
-                    checked={autoRenew || subscription.autoRenew}
-                    onCheckedChange={setAutoRenew}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+          {billingInfo ? (
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-4">
+                {/* Renew Option Card */}
+                <Card className="p-0">
+                  {/* Auto-renew status information */}
+                  <div
+                    className={`p-4 rounded-xl border ${
+                      autoRenew
+                        ? "bg-green-50 border-green-200"
+                        : "bg-yellow-50 border-yellow-200"
+                    }`}
+                  >
+                    {isAutoRenewLoading && (
+                      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                        <span>Updating auto-renew setting...</span>
+                      </div>
+                    )}
 
-            {/* Upgrade Options Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Upgrade Options</CardTitle>
-                <CardDescription>
-                  Available plans for your application
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="p-3 border rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-medium">Pro Plan</span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(299000)}/month
+                    <div className="flex items-start space-x-3">
+                      <div
+                        className={`w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${
+                          autoRenew ? "bg-green-500" : "bg-yellow-500"
+                        }`}
+                      >
+                        {autoRenew ? (
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        ) : (
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h4
+                            className={`text-sm font-medium ${
+                              autoRenew ? "text-green-800" : "text-yellow-800"
+                            }`}
+                          >
+                            {autoRenew
+                              ? "Auto-Renew Enabled"
+                              : "Auto-Renew Disabled"}
+                          </h4>
+                          <Switch
+                            checked={autoRenew}
+                            onCheckedChange={handleAutoRenewToggle}
+                            disabled={isAutoRenewLoading}
+                          />
+                        </div>
+                        <p
+                          className={`text-sm mt-1 ${
+                            autoRenew ? "text-green-700" : "text-yellow-700"
+                          }`}
+                        >
+                          {autoRenewMessage ||
+                            (autoRenew
+                              ? `Your subscription will automatically renew on ${
+                                  billingInfo?.billingInfo?.nextBillingDate
+                                    ? format(
+                                        new Date(
+                                          billingInfo.billingInfo.nextBillingDate
+                                        ),
+                                        "dd MMM yyyy"
+                                      )
+                                    : "the next billing date"
+                                } and you will be charged ${formatCurrency(
+                                  subscription?.monthlyPrice || 0
+                                )}.`
+                              : `Your subscription will end on ${
+                                  subscription?.endDate
+                                    ? format(
+                                        new Date(subscription.endDate),
+                                        "dd MMM yyyy"
+                                      )
+                                    : "the current period end date"
+                                }. No automatic charges will occur.`)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+                {/* Current Plan Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Current Plan</CardTitle>
+                    <CardDescription>
+                      Your active subscription details
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex justify-between">
+                      <span>Plan:</span>
+                      <span className="font-medium">
+                        {billingInfo.currentPlan.name}
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground mb-2">
-                      2.00 CPU cores • 2GB RAM • 20GB Storage
-                    </div>
-                    <Button size="sm" className="w-full">
-                      <TrendingUp className="mr-2 h-4 w-4" />
-                      Upgrade to Pro
-                    </Button>
-                  </div>
-
-                  <div className="p-3 border rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-medium">Enterprise Plan</span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(599000)}/month
+                    <div className="flex justify-between">
+                      <span>Monthly Price:</span>
+                      <span className="font-medium">
+                        {formatCurrency(billingInfo.currentPlan.monthlyPrice)}
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground mb-2">
-                      4.00 CPU cores • 4GB RAM • 50GB Storage
+                    <div className="flex justify-between">
+                      <span>Next Billing:</span>
+                      <span className="font-medium">
+                        {billingInfo.billingInfo.nextBillingDate
+                          ? format(
+                              new Date(billingInfo.billingInfo.nextBillingDate),
+                              "dd MMM yyyy"
+                            )
+                          : "N/A"}
+                      </span>
                     </div>
-                    <Button size="sm" className="w-full">
-                      <TrendingUp className="mr-2 h-4 w-4" />
-                      Upgrade to Enterprise
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                    <div className="flex justify-between">
+                      <span>Days Remaining:</span>
+                      <span className="font-medium">
+                        {billingInfo.billingInfo.daysRemaining} days
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>{" "}
+              {/* Upgrade Options */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Upgrade Options</CardTitle>
+                  <CardDescription>
+                    {billingInfo?.availableUpgrades &&
+                    billingInfo.availableUpgrades.length > 0
+                      ? "Select a plan to view upgrade details"
+                      : "Plan upgrade information"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {billingInfo?.availableUpgrades &&
+                  billingInfo.availableUpgrades.length > 0 ? (
+                    <>
+                      <div>
+                        <label className="block text-sm  text-muted-foreground mb-1">
+                          Select Upgrade Plan
+                        </label>
+                        <Select
+                          value={selectedUpgradePlan}
+                          onValueChange={setSelectedUpgradePlan}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a plan to upgrade" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {billingInfo.availableUpgrades.map((plan) => (
+                              <SelectItem key={plan.id} value={plan.id}>
+                                {plan.name} -{" "}
+                                {formatCurrency(plan.monthlyPrice)}/month
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {selectedUpgradePlan &&
+                        (() => {
+                          const selectedPlan =
+                            billingInfo.availableUpgrades.find(
+                              (plan) => plan.id === selectedUpgradePlan
+                            );
+                          return selectedPlan ? (
+                            <div className="p-4 border rounded-lg bg-gray-50">
+                              <div className="flex justify-between items-center mb-3">
+                                <span className="font-medium text-lg">
+                                  {selectedPlan.name}
+                                </span>
+                                <div className="text-right">
+                                  <div className="text-sm font-medium">
+                                    {formatCurrency(selectedPlan.monthlyPrice)}
+                                    /month
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    Upgrade Cost:{" "}
+                                    {formatCurrency(selectedPlan.upgradeCost)}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground mb-3">
+                                {(
+                                  selectedPlan.resources.cpuMilli / 1000
+                                ).toFixed(2)}{" "}
+                                CPU cores • {selectedPlan.resources.memoryMb}MB
+                                RAM • {selectedPlan.resources.storageGb}GB
+                                Storage
+                              </div>
+
+                              <Button
+                                size="lg"
+                                className="w-full"
+                                disabled={
+                                  !selectedPlan.canUpgrade ||
+                                  !selectedPlan.quotaAvailable
+                                }
+                                onClick={() => setShowUpgradeDialog(true)}
+                              >
+                                <TrendingUp className="mr-2 h-4 w-4" />
+                                Upgrade to {selectedPlan.name}
+                              </Button>
+                              {!selectedPlan.canUpgrade &&
+                                selectedPlan.reason && (
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <AlertCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
+                                    <p className="text-xs text-red-500">
+                                      {selectedPlan.reason}
+                                    </p>
+                                  </div>
+                                )}
+                              {!selectedPlan.quotaAvailable && (
+                                <p className="text-xs text-red-500 mt-1">
+                                  Quota not available
+                                </p>
+                              )}
+                            </div>
+                          ) : null;
+                        })()}
+                    </>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                        <TrendingUp className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        {billingInfo?.currentPlan?.planType === "ENTERPRISE" ||
+                        billingInfo?.currentPlan?.planType === "PRO"
+                          ? "You're on the highest plan!"
+                          : "No upgrades available"}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {billingInfo?.currentPlan?.planType === "ENTERPRISE" ||
+                        billingInfo?.currentPlan?.planType === "PRO"
+                          ? `You're currently on the ${billingInfo.currentPlan.name} plan, which is our highest tier. You have access to all premium features.`
+                          : "There are currently no upgrade options available for your plan. Please check back later or contact support for more information."}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-muted-foreground">
+                Loading billing information...
+              </div>
+            </div>
+          )}
 
           {/* Billing History - Full Width */}
           <Card>
@@ -1487,6 +2158,327 @@ export default function MyAppDetailPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Upgrade Confirmation Dialog */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Upgrade</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to upgrade your plan?
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedUpgradePlan &&
+            billingInfo?.availableUpgrades &&
+            (() => {
+              const selectedPlan = billingInfo.availableUpgrades.find(
+                (plan) => plan.id === selectedUpgradePlan
+              );
+              return selectedPlan ? (
+                <div className="space-y-4">
+                  <div className="p-4 border rounded-lg bg-gray-50">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium">{selectedPlan.name}</span>
+                      <span className="text-sm font-medium">
+                        {formatCurrency(selectedPlan.monthlyPrice)}/month
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mb-2">
+                      {(selectedPlan.resources.cpuMilli / 1000).toFixed(2)} CPU
+                      cores •{selectedPlan.resources.memoryMb}MB RAM •
+                      {selectedPlan.resources.storageGb}GB Storage
+                    </div>
+                    <div className="text-sm font-medium text-blue-600">
+                      Upgrade Cost: {formatCurrency(selectedPlan.upgradeCost)}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      onClick={handleUpgrade}
+                      disabled={isUpgrading}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {isUpgrading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Upgrading...
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="mr-2 h-4 w-4" />
+                          Confirm Upgrade
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowUpgradeDialog(false)}
+                      className="flex-1"
+                      disabled={isUpgrading}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : null;
+            })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Upgrade Provisioning Dialog */}
+      <Dialog
+        open={showProvisioningDialog}
+        onOpenChange={handleUpgradeDialogClose}
+      >
+        <DialogContent className="max-w-md">
+          {/* Header */}
+          <DialogHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                <img
+                  src={subscription?.service?.icon}
+                  alt={subscription?.service?.name}
+                  className="w-8 h-8 object-contain"
+                />
+              </div>
+              <div className="flex-1">
+                <DialogTitle className="text-lg font-semibold text-gray-900">
+                  {upgradeProvisioningStatus.isProvisioning
+                    ? "Upgrading Service"
+                    : "Upgrade Complete"}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-gray-500">
+                  {subscription?.service?.name} • Upgrade in progress
+                </DialogDescription>
+              </div>
+              {!upgradeProvisioningStatus.isProvisioning && (
+                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-3 h-3 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+              )}
+            </div>
+          </DialogHeader>
+
+          {/* Conditional Content */}
+          {!upgradeProvisioningStatus.isProvisioning &&
+          upgradeProvisioningStatus.publicUrl ? (
+            /* Service Ready */
+            <div className="py-4">
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-gray-900">
+                  Your service upgrade is complete
+                </p>
+
+                {/* Service URL Display */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"
+                      />
+                    </svg>
+                    <span>Service URL</span>
+                  </div>
+                  <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 border">
+                    <p className="text-sm font-mono text-gray-700 dark:text-gray-300 truncate">
+                      {upgradeProvisioningStatus.publicUrl}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Access Service Button */}
+                <a
+                  href={upgradeProvisioningStatus.publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                    />
+                  </svg>
+                  Access service
+                </a>
+              </div>
+            </div>
+          ) : (
+            /* Progress Steps */
+            <div className="space-y-3 py-4">
+              {/* Step 1: Upgrade Started */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-3 h-3 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Upgrade Started
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Your upgrade request is processing
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2: Service Status */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    upgradeProvisioningStatus.status === "RUNNING"
+                      ? "bg-green-500"
+                      : "bg-gray-400"
+                  }`}
+                >
+                  {upgradeProvisioningStatus.status === "RUNNING" ? (
+                    <svg
+                      className="w-3 h-3 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  ) : (
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Service Upgrade
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Status: {upgradeProvisioningStatus.status || "PROVISIONING"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3: Health Check */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    upgradeProvisioningStatus.healthStatus === "Healthy"
+                      ? "bg-green-500"
+                      : upgradeProvisioningStatus.status === "RUNNING"
+                      ? "bg-gray-400"
+                      : "bg-gray-300"
+                  }`}
+                >
+                  {upgradeProvisioningStatus.healthStatus === "Healthy" ? (
+                    <svg
+                      className="w-3 h-3 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  ) : upgradeProvisioningStatus.status === "RUNNING" ? (
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <div className="w-3 h-3 border-2 border-white rounded-full opacity-50"></div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Health Check
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Status:{" "}
+                    {upgradeProvisioningStatus.healthStatus || "Pending"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress Message */}
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      Upgrading your service
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      This usually takes 1-2 minutes
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons - Only show when upgrade is complete */}
+          {!upgradeProvisioningStatus.isProvisioning &&
+            upgradeProvisioningStatus.publicUrl && (
+              <div className="flex gap-3 pt-4 border-t">
+                <Button
+                  onClick={() => {
+                    window.open(upgradeProvisioningStatus.publicUrl, "_blank");
+                  }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Open App
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (upgradePollingInterval) {
+                      clearInterval(upgradePollingInterval);
+                      setUpgradePollingInterval(null);
+                    }
+                    setShowProvisioningDialog(false);
+                  }}
+                  className="flex-1"
+                >
+                  Continue Browsing
+                </Button>
+              </div>
+            )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
