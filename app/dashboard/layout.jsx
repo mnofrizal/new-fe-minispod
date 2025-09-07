@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -63,6 +64,10 @@ import {
   WifiIcon,
   Router,
   Ticket,
+  BarChart3,
+  Zap,
+  Sparkles,
+  MessageSquare,
 } from "lucide-react";
 
 const menuItems = {
@@ -87,6 +92,11 @@ const menuItems = {
   ],
   admin: [
     {
+      title: "Admin Dashboard",
+      url: "/dashboard/admin",
+      icon: BarChart3,
+    },
+    {
       title: "Manage Users",
       url: "/dashboard/admin/users",
       icon: Users,
@@ -105,6 +115,11 @@ const menuItems = {
       title: "Manage Coupons",
       url: "/dashboard/admin/coupons",
       icon: Ticket,
+    },
+    {
+      title: "Manage Support Tickets",
+      url: "/dashboard/admin/tickets",
+      icon: MessageSquare,
     },
   ],
   server: [
@@ -147,6 +162,11 @@ const menuItems = {
     },
   ],
   support: [
+    {
+      title: "Support Tickets",
+      url: "/dashboard/support-tickets",
+      icon: MessageSquare,
+    },
     {
       title: "Billing",
       url: "/dashboard/billing",
@@ -427,6 +447,11 @@ function DashboardBreadcrumb() {
         { label: "Dashboard", href: "/dashboard" },
         { label: "Settings", href: "/dashboard/settings" },
       ],
+      "/dashboard/admin": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Admin Panel", href: "#" },
+        { label: "Admin Dashboard", href: "/dashboard/admin" },
+      ],
       "/dashboard/admin/users": [
         { label: "Dashboard", href: "/dashboard" },
         { label: "Admin Panel", href: "#" },
@@ -449,6 +474,15 @@ function DashboardBreadcrumb() {
         { label: "Dashboard", href: "/dashboard" },
         { label: "Admin Panel", href: "#" },
         { label: "Manage Coupons", href: "/dashboard/admin/coupons" },
+      ],
+      "/dashboard/admin/tickets": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Admin Panel", href: "#" },
+        { label: "Manage Support Tickets", href: "/dashboard/admin/tickets" },
+      ],
+      "/dashboard/support-tickets": [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Support Tickets", href: "/dashboard/support-tickets" },
       ],
       "/dashboard/server/nodes": [
         { label: "Dashboard", href: "/dashboard" },
@@ -503,6 +537,35 @@ function DashboardBreadcrumb() {
       ];
     }
 
+    // Handle ticket detail routes
+    if (
+      pathname.startsWith("/dashboard/admin/tickets/") &&
+      pathname !== "/dashboard/admin/tickets"
+    ) {
+      // Extract the ticket ID from the path
+      const ticketId = pathname.split("/dashboard/admin/tickets/")[1];
+      return [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Admin Panel", href: "#" },
+        { label: "Manage Support Tickets", href: "/dashboard/admin/tickets" },
+        { label: "Ticket Details", href: pathname },
+      ];
+    }
+
+    // Handle user support ticket detail routes
+    if (
+      pathname.startsWith("/dashboard/support-tickets/") &&
+      pathname !== "/dashboard/support-tickets"
+    ) {
+      // Extract the ticket ID from the path
+      const ticketId = pathname.split("/dashboard/support-tickets/")[1];
+      return [
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Support Tickets", href: "/dashboard/support-tickets" },
+        { label: "Ticket Details", href: pathname },
+      ];
+    }
+
     return (
       breadcrumbMap[pathname] || [{ label: "Dashboard", href: "/dashboard" }]
     );
@@ -546,7 +609,20 @@ export default function DashboardLayout({ children }) {
           <div className="flex items-center gap-2 flex-1">
             <DashboardBreadcrumb />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Free Deploy Promotional Button */}
+            <Button className="cursor-pointer px-1 overflow-hidden bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 hover:from-purple-500 hover:via-pink-500 hover:animate-pulse hover:to-blue-500 text-white font-semibold rounded-full shadow-none hover:shadow-xl transition-all duration-300 transform hover:scale-105 ">
+              <Link
+                href="/dashboard/applications"
+                className="bg-white rounded-full flex items-center justify-center px-2 py-1 gap-1"
+              >
+                <Zap className="w-4 h-4 text-black" />
+                {/* <Sparkles className="w-4 h-4 animate-spin" /> */}
+                <span className="relative z-10 text-sm font-medium tracking-normal text-black">
+                  Free Deploy
+                </span>
+              </Link>
+            </Button>
             <ThemeToggle />
           </div>
         </header>

@@ -1987,13 +1987,13 @@ export default function MyAppDetailPage() {
                         <TrendingUp className="h-6 w-6 text-blue-600" />
                       </div>
                       <h3 className="text-lg font-medium text-gray-900 mb-2">
-                        {billingInfo?.currentPlan?.planType === "ENTERPRISE" ||
+                        {billingInfo?.currentPlan?.planType === "MAX" ||
                         billingInfo?.currentPlan?.planType === "PRO"
                           ? "You're on the highest plan!"
                           : "No upgrades available"}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        {billingInfo?.currentPlan?.planType === "ENTERPRISE" ||
+                        {billingInfo?.currentPlan?.planType === "MAX" ||
                         billingInfo?.currentPlan?.planType === "PRO"
                           ? `You're currently on the ${billingInfo.currentPlan.name} plan, which is our highest tier. You have access to all premium features.`
                           : "There are currently no upgrade options available for your plan. Please check back later or contact support for more information."}

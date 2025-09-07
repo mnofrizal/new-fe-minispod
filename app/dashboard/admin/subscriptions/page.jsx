@@ -30,6 +30,9 @@ import {
   Plus,
   TrendingUp,
   XCircle,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -66,10 +69,26 @@ export default function ManageSubscriptionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
+  // Search and Filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [serviceFilter, setServiceFilter] = useState("all");
+
+  // Server-side pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+
+  // Debounce search to avoid too many API calls
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+
   // Add Subscription Dialog States
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [services, setServices] = useState([]);
+  const [allServices, setAllServices] = useState([]); // For service filter dropdown
   const [selectedService, setSelectedService] = useState(null);
   const [plans, setPlans] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,17 +125,72 @@ export default function ManageSubscriptionsPage() {
   useEffect(() => {
     if (session?.accessToken) {
       fetchSubscriptions();
+      fetchAllServices(); // Fetch services for filter dropdown
     } else if (status === "unauthenticated") {
       setIsLoading(false);
     }
   }, [session, status]);
 
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Fetch subscriptions when filters or pagination change
+  useEffect(() => {
+    if (session?.accessToken) {
+      fetchSubscriptions();
+    }
+  }, [
+    session?.accessToken,
+    currentPage,
+    debouncedSearchTerm,
+    statusFilter,
+    serviceFilter,
+  ]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchTerm, statusFilter, serviceFilter]);
+
   const fetchSubscriptions = async () => {
     if (!session?.accessToken) return;
 
     try {
+      setIsLoading(true);
+
+      // Build query parameters
+      const queryParams = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: itemsPerPage.toString(),
+      });
+
+      // Add search parameter
+      if (debouncedSearchTerm) {
+        queryParams.append("search", debouncedSearchTerm);
+      }
+
+      // Add status filter
+      if (statusFilter !== "all") {
+        queryParams.append("status", statusFilter);
+      }
+
+      // Add service filter
+      if (serviceFilter !== "all") {
+        queryParams.append("serviceId", serviceFilter);
+      }
+
       const response = await fetch(
-        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.ADMIN.SUBSCRIPTIONS.GET_ALL}`,
+        `${ENV_CONFIG.BASE_API_URL}${
+          API_ENDPOINTS.ADMIN.SUBSCRIPTIONS.GET_ALL
+        }?${queryParams.toString()}`,
         {
           method: "GET",
           headers: {
@@ -129,6 +203,13 @@ export default function ManageSubscriptionsPage() {
       if (response.ok) {
         const result = await response.json();
         setSubscriptions(result.data?.subscriptions || []);
+
+        // Update pagination info from server response
+        if (result.data?.pagination) {
+          setTotalPages(result.data.pagination.totalPages || 1);
+          setTotalCount(result.data.pagination.totalCount || 0);
+          setHasMore(result.data.pagination.hasMore || false);
+        }
       } else {
         const errorResult = await response.json();
         toast.error(errorResult.message || "Failed to load subscriptions", {
@@ -197,6 +278,30 @@ export default function ManageSubscriptionsPage() {
       }
     } catch (error) {
       console.error("Error loading services:", error);
+    }
+  };
+
+  const fetchAllServices = async () => {
+    if (!session?.accessToken) return;
+
+    try {
+      const response = await fetch(
+        `${ENV_CONFIG.BASE_API_URL}${API_ENDPOINTS.CATALOG.SERVICES.GET_ALL}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        setAllServices(result.data?.services || []);
+      }
+    } catch (error) {
+      console.error("Error loading all services:", error);
     }
   };
 
@@ -496,15 +601,19 @@ export default function ManageSubscriptionsPage() {
   const getStatusBadgeVariant = (status) => {
     switch (status) {
       case "ACTIVE":
-        return "bg-green-100 text-green-800";
-      case "INACTIVE":
-        return "bg-gray-100 text-gray-800";
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
       case "SUSPENDED":
-        return "bg-red-100 text-red-800";
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
       case "CANCELLED":
-        return "bg-red-100 text-red-800";
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
+      case "EXPIRED":
+        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+      case "PENDING_UPGRADE":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
+      case "PENDING_PAYMENT":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
     }
   };
 
@@ -580,6 +689,20 @@ export default function ManageSubscriptionsPage() {
     );
   };
 
+  // Server-side pagination - data is already paginated from API
+  const sortedSubscriptions = getSortedSubscriptions();
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalCount);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  // Use all services from catalog API for filter dropdown
+  const getServicesForFilter = () => {
+    return allServices.filter((service) => service.isActive);
+  };
+
   if (status === "loading" || isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -598,8 +721,6 @@ export default function ManageSubscriptionsPage() {
     );
   }
 
-  const sortedSubscriptions = getSortedSubscriptions();
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -615,8 +736,7 @@ export default function ManageSubscriptionsPage() {
           <div className="flex items-center space-x-2">
             <SubscriptionIcon className="h-5 w-5 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">
-              {subscriptions.length} subscription
-              {subscriptions.length !== 1 ? "s" : ""}
+              {totalCount} subscription{totalCount !== 1 ? "s" : ""} total
             </span>
           </div>
           <Button onClick={handleOpenAddDialog}>
@@ -626,6 +746,89 @@ export default function ManageSubscriptionsPage() {
         </div>
       </div>
 
+      {/* Search and Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Search & Filters</CardTitle>
+          <CardDescription>
+            Filter subscriptions by user, service, or status
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search by user name, email, service, or plan..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                <SelectItem value="EXPIRED">Expired</SelectItem>
+                <SelectItem value="PENDING_UPGRADE">Pending Upgrade</SelectItem>
+                <SelectItem value="PENDING_PAYMENT">Pending Payment</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Service Filter */}
+            <Select value={serviceFilter} onValueChange={setServiceFilter}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Filter by service" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Services</SelectItem>
+                {getServicesForFilter().map((service) => (
+                  <SelectItem key={service.id} value={service.id}>
+                    <div className="flex items-center space-x-2">
+                      {service.icon && (
+                        <img
+                          src={service.icon}
+                          alt={service.name}
+                          className="h-4 w-4"
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                          }}
+                        />
+                      )}
+                      <span>{service.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Clear Filters */}
+            {(searchTerm ||
+              statusFilter !== "all" ||
+              serviceFilter !== "all") && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchTerm("");
+                  setStatusFilter("all");
+                  setServiceFilter("all");
+                }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Subscriptions List</CardTitle>
@@ -634,10 +837,14 @@ export default function ManageSubscriptionsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {subscriptions.length === 0 ? (
+          {subscriptions.length === 0 && !isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-muted-foreground">
-                No subscriptions found
+                {debouncedSearchTerm ||
+                statusFilter !== "all" ||
+                serviceFilter !== "all"
+                  ? "No subscriptions match your search criteria"
+                  : "No subscriptions found"}
               </div>
             </div>
           ) : (
@@ -845,6 +1052,72 @@ export default function ManageSubscriptionsPage() {
                 ))}
               </TableBody>
             </Table>
+          )}
+
+          {/* Pagination */}
+          {totalCount > 0 && totalPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-4">
+              <div className="flex items-center text-sm text-muted-foreground">
+                Showing {startIndex + 1} to {endIndex} of {totalCount} results
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((page) => {
+                      // Show first page, last page, current page, and pages around current page
+                      return (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1)
+                      );
+                    })
+                    .map((page, index, array) => {
+                      // Add ellipsis if there's a gap
+                      const showEllipsisBefore =
+                        index > 0 && array[index - 1] < page - 1;
+                      return (
+                        <div key={page} className="flex items-center">
+                          {showEllipsisBefore && (
+                            <span className="px-2 text-muted-foreground">
+                              ...
+                            </span>
+                          )}
+                          <Button
+                            variant={
+                              currentPage === page ? "default" : "outline"
+                            }
+                            size="sm"
+                            onClick={() => handlePageChange(page)}
+                            className="w-8 h-8 p-0"
+                          >
+                            {page}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

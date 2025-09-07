@@ -219,7 +219,6 @@ export default function ManageCouponsPage() {
 
       // Prepare the payload based on coupon type
       let payload = {
-        code: formData.code,
         name: formData.name,
         description: formData.description,
         type: formData.type,
@@ -231,6 +230,11 @@ export default function ManageCouponsPage() {
           : "",
       };
 
+      // Only include code for new coupons (not for edits)
+      if (!isEdit) {
+        payload.code = formData.code;
+      }
+
       // Add optional fields only if they have values
       if (formData.maxUses) {
         payload.maxUses = parseInt(formData.maxUses);
@@ -240,7 +244,10 @@ export default function ManageCouponsPage() {
       }
 
       // Add type-specific fields
-      if (formData.type === "CREDIT_TOPUP") {
+      if (
+        formData.type === "CREDIT_TOPUP" ||
+        formData.type === "WELCOME_BONUS"
+      ) {
         if (formData.creditAmount) {
           payload.creditAmount = parseInt(formData.creditAmount);
         }
@@ -260,6 +267,7 @@ export default function ManageCouponsPage() {
           }
         }
       }
+      // FREE_SERVICE type doesn't need additional fields
 
       const endpoint = isEdit
         ? `${
@@ -371,10 +379,14 @@ export default function ManageCouponsPage() {
     const variants = {
       CREDIT_TOPUP: "default",
       SUBSCRIPTION_DISCOUNT: "secondary",
+      FREE_SERVICE: "outline",
+      WELCOME_BONUS: "destructive",
     };
     const labels = {
       CREDIT_TOPUP: "Credit Topup",
       SUBSCRIPTION_DISCOUNT: "Subscription Discount",
+      FREE_SERVICE: "Free Service",
+      WELCOME_BONUS: "Welcome Bonus",
     };
     return (
       <Badge variant={variants[type] || "secondary"}>
@@ -469,6 +481,8 @@ export default function ManageCouponsPage() {
                 <SelectItem value="SUBSCRIPTION_DISCOUNT">
                   Subscription Discount
                 </SelectItem>
+                <SelectItem value="FREE_SERVICE">Free Service</SelectItem>
+                <SelectItem value="WELCOME_BONUS">Welcome Bonus</SelectItem>
               </SelectContent>
             </Select>
 
@@ -544,9 +558,15 @@ export default function ManageCouponsPage() {
                       <TableCell>
                         {coupon.type === "CREDIT_TOPUP"
                           ? formatRupiah(coupon.creditAmount)
-                          : coupon.discountType === "FIXED_AMOUNT"
+                          : coupon.type === "SUBSCRIPTION_DISCOUNT"
+                          ? coupon.discountType === "FIXED_AMOUNT"
+                            ? formatRupiah(coupon.creditAmount)
+                            : `${coupon.discountPercent}%`
+                          : coupon.type === "FREE_SERVICE"
+                          ? "Free Service"
+                          : coupon.type === "WELCOME_BONUS"
                           ? formatRupiah(coupon.creditAmount)
-                          : `${coupon.discountPercent}%`}
+                          : "N/A"}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -626,7 +646,13 @@ export default function ManageCouponsPage() {
                   }
                   placeholder="e.g., WELCOME50K"
                   className="font-mono"
+                  disabled={isEditDialogOpen}
                 />
+                {isEditDialogOpen && (
+                  <p className="text-xs text-gray-500">
+                    Coupon code cannot be changed after creation
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
@@ -668,9 +694,29 @@ export default function ManageCouponsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CREDIT_TOPUP">Credit Topup</SelectItem>
+                    <SelectItem value="CREDIT_TOPUP">
+                      Credit Topup
+                      <span className="text-xs text-gray-500 ml-2">
+                        (Add credit to wallet - billing page)
+                      </span>
+                    </SelectItem>
                     <SelectItem value="SUBSCRIPTION_DISCOUNT">
                       Subscription Discount
+                      <span className="text-xs text-gray-500 ml-2">
+                        (Discount on subscription - checkout page)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="FREE_SERVICE">
+                      Free Service
+                      <span className="text-xs text-gray-500 ml-2">
+                        (Free service redemption)
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="WELCOME_BONUS">
+                      Welcome Bonus
+                      <span className="text-xs text-gray-500 ml-2">
+                        (Welcome bonus for new users - auto-applied)
+                      </span>
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -707,6 +753,10 @@ export default function ManageCouponsPage() {
                   }
                   placeholder="e.g., 50000"
                 />
+                <p className="text-xs text-gray-500">
+                  Amount of credit to add to user's wallet when coupon is
+                  redeemed on billing page
+                </p>
               </div>
             )}
 
@@ -769,6 +819,48 @@ export default function ManageCouponsPage() {
                       />
                     </>
                   )}
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-500">
+                    Discount applied to subscription cost during checkout
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {formData.type === "FREE_SERVICE" && (
+              <div className="space-y-2">
+                <Label>Free Service Configuration</Label>
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    This coupon allows users to redeem a free service. The
+                    specific service and duration will be configured in the
+                    backend.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {formData.type === "WELCOME_BONUS" && (
+              <div className="space-y-2">
+                <Label htmlFor="creditAmount">
+                  Welcome Bonus Amount (IDR) *
+                </Label>
+                <Input
+                  id="creditAmount"
+                  type="number"
+                  value={formData.creditAmount}
+                  onChange={(e) =>
+                    setFormData({ ...formData, creditAmount: e.target.value })
+                  }
+                  placeholder="e.g., 100000"
+                />
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md">
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    Welcome bonus is automatically applied to new users upon
+                    registration. This coupon will be auto-applied and doesn't
+                    require manual redemption.
+                  </p>
                 </div>
               </div>
             )}

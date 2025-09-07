@@ -1053,7 +1053,7 @@ export default function ApplicationsPage() {
                             !selectedVariant ||
                             isCheckingSubscription
                           }
-                          className="w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+                          className="cursor-pointer w-full h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
                         >
                           {isSubscribing ? (
                             <>

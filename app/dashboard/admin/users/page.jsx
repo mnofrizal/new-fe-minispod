@@ -28,6 +28,7 @@ import {
   UserX,
   Edit,
   Trash2,
+  Search,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -65,6 +66,8 @@ import { ENV_CONFIG, API_ENDPOINTS } from "@/config/environment";
 export default function ManageUsersPage() {
   const { data: session, status } = useSession();
   const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -85,6 +88,24 @@ export default function ManageUsersPage() {
     }
   }, [session, status]);
 
+  // Filter users based on search term
+  useEffect(() => {
+    let filtered = users;
+
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (user) =>
+          user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.role?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.id?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    setFilteredUsers(filtered);
+  }, [users, searchTerm]);
+
   const fetchUsers = async () => {
     if (!session?.accessToken) return;
 
@@ -102,7 +123,9 @@ export default function ManageUsersPage() {
 
       if (response.ok) {
         const result = await response.json();
-        setUsers(result.data?.users || []);
+        const userData = result.data?.users || [];
+        setUsers(userData);
+        setFilteredUsers(userData);
       } else {
         const errorResult = await response.json();
         toast.error(errorResult.message || "Failed to load users", {
@@ -143,9 +166,19 @@ export default function ManageUsersPage() {
       });
 
       if (response.ok) {
-        setUsers(
-          users.map((user) =>
-            user.id === userId ? { ...user, isActive: !currentStatus } : user
+        const updatedUsers = users.map((user) =>
+          user.id === userId ? { ...user, isActive: !currentStatus } : user
+        );
+        setUsers(updatedUsers);
+        setFilteredUsers(
+          updatedUsers.filter(
+            (user) =>
+              !searchTerm ||
+              user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.role?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.id?.toLowerCase().includes(searchTerm.toLowerCase())
           )
         );
         toast.success(
@@ -216,9 +249,19 @@ export default function ManageUsersPage() {
       });
 
       if (response.ok) {
-        setUsers(
-          users.map((user) =>
-            user.id === selectedUser.id ? { ...user, ...editFormData } : user
+        const updatedUsers = users.map((user) =>
+          user.id === selectedUser.id ? { ...user, ...editFormData } : user
+        );
+        setUsers(updatedUsers);
+        setFilteredUsers(
+          updatedUsers.filter(
+            (user) =>
+              !searchTerm ||
+              user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.role?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.id?.toLowerCase().includes(searchTerm.toLowerCase())
           )
         );
         toast.success("User updated successfully");
@@ -267,7 +310,19 @@ export default function ManageUsersPage() {
       });
 
       if (response.ok) {
-        setUsers(users.filter((user) => user.id !== userId));
+        const updatedUsers = users.filter((user) => user.id !== userId);
+        setUsers(updatedUsers);
+        setFilteredUsers(
+          updatedUsers.filter(
+            (user) =>
+              !searchTerm ||
+              user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.role?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              user.id?.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        );
         toast.success("User deleted successfully");
       } else {
         const errorResult = await response.json();
@@ -335,16 +390,49 @@ export default function ManageUsersPage() {
         <div className="flex items-center space-x-2">
           <Users className="h-5 w-5 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">
-            {users.length} user{users.length !== 1 ? "s" : ""}
+            {filteredUsers.length} of {users.length} user
+            {users.length !== 1 ? "s" : ""}
           </span>
         </div>
       </div>
 
+      {/* Search Filter */}
       <Card>
         <CardHeader>
-          <CardTitle>Users List</CardTitle>
+          <CardTitle>Search & Filter</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search users by name, email, phone, role, or ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Clear Search */}
+            {searchTerm && (
+              <Button variant="outline" onClick={() => setSearchTerm("")}>
+                Clear
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Users List ({filteredUsers.length})</CardTitle>
           <CardDescription>
-            All registered users and their information
+            {searchTerm
+              ? `Showing ${filteredUsers.length} user${
+                  filteredUsers.length !== 1 ? "s" : ""
+                } matching "${searchTerm}"`
+              : "All registered users and their information"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -352,9 +440,19 @@ export default function ManageUsersPage() {
             <div className="flex items-center justify-center py-8">
               <div className="text-muted-foreground">Loading users...</div>
             </div>
-          ) : users.length === 0 ? (
+          ) : filteredUsers.length === 0 ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-muted-foreground">No users found</div>
+              <div className="text-center">
+                <Users className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                  No users found
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {searchTerm
+                    ? `No users match "${searchTerm}". Try adjusting your search.`
+                    : "No users have been registered yet."}
+                </p>
+              </div>
             </div>
           ) : (
             <Table>
@@ -372,7 +470,7 @@ export default function ManageUsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <ContextMenu key={user.id}>
                     <ContextMenuTrigger asChild>
                       <TableRow

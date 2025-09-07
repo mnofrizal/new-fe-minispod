@@ -10,6 +10,7 @@ export const ENV_CONFIG = {
 
 export const API_ENDPOINTS = {
   AUTH: {
+    GOOGLE_LOGIN: "/api/auth/google/login",
     LOGIN: "/api/auth/login",
     REGISTER: "/api/auth/register",
     LOGOUT: "/api/auth/logout",
@@ -41,6 +42,13 @@ export const API_ENDPOINTS = {
     AUTO_RENEW_TOGGLE: "/api/subscriptions/:id/auto-renew",
   },
   ADMIN: {
+    ANALYTICS: {
+      DASHBOARD: "/api/admin/analytics/dashboard",
+      REVENUE: "/api/admin/analytics/revenue",
+      SUBSCRIPTIONS: "/api/admin/analytics/subscriptions",
+      USERS: "/api/admin/analytics/users",
+      SERVICE_CONTROL: "/api/admin/analytics/service-control",
+    },
     USERS: {
       GET_ALL: "/api/admin/users", // no payload
       GET_BY_ID: "/api/admin/users/:id", // params: { id }
@@ -60,6 +68,37 @@ export const API_ENDPOINTS = {
       CREATE: "/api/admin/coupons",
       UPDATE: "/api/admin/coupons/:id",
       DELETE: "/api/admin/coupons/:id",
+    },
+    MANAGE_SERVICE_CATALOG: {
+      GET_CATAGORIES: "/api//catalog/categories",
+      GET_ALL: "/api/admin/services",
+      GET_BY_ID: "/api/admin/services/:id",
+      CREATE: "/api/admin/services",
+      UPDATE: "/api/admin/services/:id",
+      DELETE: "/api/admin/services/:id",
+      TOGGLE_STATUS: "/api/admin/services/:id/toggle-status",
+      GET_ALL_SERVICE_PLANS: "/api/admin/services/plans",
+      GET_SERVICE_PLANS: "/api/admin/services/:id/plans",
+      UPDATE_SERVICE_PLAN: "/api/admin/services/:id/plans/:planId",
+      CREATE_SERVICE_PLAN: "/api/admin/services/:id/plans",
+      DELETE_SERVICE_PLAN: "/api/admin/services/:id/plans/:planId",
+      TOGGLE_STATUS_SERVICE_PLAN:
+        "/api/admin/services/:id/plans/:planId/toggle-status",
+    },
+    MANAGE_SERVVICE_CATALOG: {
+      GET_ALL: "/api/admin/services",
+      GET_BY_ID: "/api/admin/services/:id",
+      CREATE: "/api/admin/services",
+      UPDATE: "/api/admin/services/:id",
+      DELETE: "/api/admin/services/:id",
+      TOGGLE_STATUS: "/api/admin/services/:id/toggle-status", //PATCH
+      GET_SERVICE_PLANS: "/api/admin/services/:id/plans",
+      UPDATE_SERVICE_PLAN: "/api/admin/services/:id/plans/:planId",
+      CREATE_SERVICE_PLAN: "/api/admin/services/:id/plans",
+      UPDATE_SERVICE_PLAN: "/api/admin/services/:id/plans/:planId",
+      DELETE_SERVICE_PLAN: "/api/admin/services/:id/plans/:planId",
+      TOGGLE_STATUS_SERVICE_PLAN:
+        "/api/admin/services/:id/plans/:planId/toggle-status",
     },
     SERVER: {
       NODES: {
@@ -83,6 +122,22 @@ export const API_ENDPOINTS = {
         GET_ALL: "/api/admin/k8s/services",
       },
     },
+    MANAGE_TICKETS: {
+      STATS: "/api/admin/tickets/stats",
+      GET_ALL: "/api/admin/tickets",
+      RESPOND: "/api/admin/tickets/:id/messages",
+      GET_BY_ID: "/api/admin/tickets/:id",
+      CLOSE: "/api/admin/tickets/:id/close",
+      REOPEN: "/api/admin/tickets/:id/reopen",
+    },
+  },
+  SUPPORT_TICKET: {
+    STATS: "/api/tickets/stats",
+    GET_ALL: "/api/tickets",
+    CREATE: "/api/tickets",
+    RESPOND: "/api/tickets/:id/messages",
+    GET_BY_ID: "/api/tickets/:id",
+    CLOSE: "/api/tickets/:id/close",
   },
   MY_APPS: {
     GET_ALL: "/api/subscriptions",
